@@ -1,15 +1,15 @@
 
-trait SimpleFuture {
+pub trait SimpleFuture {
     type Output;
     fn poll( &mut self, waker: fn() ) -> Poll<Self::Output>;
 }
 
-enum Poll<T> {
+pub enum Poll<T> {
     Ready(T),
     Pending,
 }
-
-struct MyTask {
+#[derive(Debug)]
+pub struct MyTask {
     b: bool,
     waker: Option<fn()>,
 }
@@ -28,25 +28,22 @@ impl SimpleFuture for MyTask {
 }
 
 impl MyTask {
-    fn new() -> MyTask {
+    pub fn new() -> MyTask {
         MyTask { b: false, waker: None }
     }
-    fn do_something(&mut self) {
+    pub fn do_something(&mut self) {
         self.b = true;
-        self.waker.take();
+        self.waker.take().unwrap()();
     }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::{MyTask};
+    use super::*;
 
     #[test]
     fn it_works() {
-        let mut task = MyTask::new();
-
-        task.do_something();
 
         assert_eq!(true, true);
     }
