@@ -4,7 +4,7 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="Plain implementation">
+    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="waker(&amp;mut Self)">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/bin/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bin/main.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
@@ -136,7 +136,14 @@
       <option name="project" value="LOCAL" />
       <updated>1648486089540</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="waker(&amp;mut Self)">
+      <created>1648554668345</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1648554668345</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -153,7 +160,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="WIP" />
     <MESSAGE value="Plain implementation" />
-    <option name="LAST_COMMIT_MESSAGE" value="Plain implementation" />
+    <MESSAGE value="waker(&amp;mut Self)" />
+    <option name="LAST_COMMIT_MESSAGE" value="waker(&amp;mut Self)" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

@@ -1,7 +1,9 @@
+use std::sync::mpsc::*;
+use std::time::Duration;
 
 pub trait SimpleFuture {
     type Output;
-    fn poll( &mut self, waker: fn(&mut Self) ) -> Poll<Self::Output>;
+    fn poll( &mut self, waker: fn(&Sender<bool>) ) -> Poll<Self::Output>;
 }
 
 pub enum Poll<T> {
@@ -11,15 +13,18 @@ pub enum Poll<T> {
 
 pub struct MyTask {
     pub b: bool,
-    pub waker: Option<fn(&mut Self)>,
+    waker: Option<fn(&Sender<bool>)>,
+    rx: Receiver<bool>,
+    tx: Sender<bool>,
 }
 
 impl SimpleFuture for MyTask {
     type Output = bool;
 
-    fn poll(&mut self, waker: fn(&mut Self)) -> Poll<Self::Output> {
-        return if self.b == true {
-            Poll::Ready(true)
+    fn poll(&mut self, waker: fn(&Sender<bool>)) -> Poll<Self::Output> {
+        return if self.rx.recv_timeout(Duration::from_nanos(1)) == Ok(true) {
+            self.b = true;
+            Poll::Ready(self.b)
         } else {
             self.waker = Some(waker);
             Poll::Pending
@@ -28,15 +33,29 @@ impl SimpleFuture for MyTask {
 }
 
 impl MyTask {
+
     pub fn new() -> MyTask {
-        MyTask { b: false, waker: None }
+        use std::sync::mpsc::*;
+        let (tx,rx) = channel::<bool>();
+        MyTask { b: false, waker: None, rx, tx }
     }
-    pub fn do_something(&mut self) {
-        self.b = true;
-        self.waker.take().unwrap()(self);
+
+    pub fn waker(tx: &std::sync::mpsc::Sender<bool>) {
+        println!("\t\t ... wake, wake !!");
+        tx.send(true);
     }
-    pub fn test_waker(&mut self) {
-        println!("\t\t ... wake, wake !! {}",self.b);
+
+    pub fn do_something(&self) {
+        use std::{thread::*, time::*};
+
+        let tx = self.tx.clone();
+        let waker = MyTask::waker;
+        spawn( move || {
+            println!("\tThread started");
+            sleep( Duration::from_secs(1));
+            println!("\tThread lapsed");
+            waker(&tx);
+        });
     }
 }
 
@@ -47,22 +66,6 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut task = MyTask::new();
-
-        println!("In: {:?}", task.b);
-        while !match task.poll(MyTask::test_waker) {
-            Poll::Ready(val) => {
-                println!("Round {:?}",task.b);
-                val
-            },
-            Poll::Pending => {
-                println!("Round {:?}",task.b);
-                task.do_something();
-                false
-            },
-        } {
-            println!("While: {:?}",task.b);
-        }
-        assert_eq!(false, true);
+        assert_eq!(1+1, 2);
     }
 }
