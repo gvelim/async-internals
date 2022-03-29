@@ -1,71 +1,56 @@
-use std::sync::mpsc::*;
-use std::time::Duration;
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{Arc,Mutex},
+    task::{Context,Poll,Waker},
+    thread,
+    time::Duration,
+};
 
-pub trait SimpleFuture {
-    type Output;
-    fn poll( &mut self, waker: fn(&Sender<bool>) ) -> Poll<Self::Output>;
+
+pub struct TimeFuture {
+    shared_state: Arc<Mutex<SharedState>>,
 }
 
-pub enum Poll<T> {
-    Ready(T),
-    Pending,
+struct SharedState {
+    completed: bool,
+    waker: Option<Waker>,
 }
 
-pub struct MyTask {
-    pub b: bool,
-    waker: Option<fn(&Sender<bool>)>,
-    rx: Receiver<bool>,
-    tx: Sender<bool>,
-}
+impl Future for TimeFuture {
+    type Output = ();
 
-impl SimpleFuture for MyTask {
-    type Output = bool;
-
-    fn poll(&mut self, waker: fn(&Sender<bool>)) -> Poll<Self::Output> {
-        return if self.rx.recv_timeout(Duration::from_nanos(1)) == Ok(true) {
-            self.b = true;
-            Poll::Ready(self.b)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut shared_state = self.shared_state.lock().unwrap();
+        if shared_state.completed {
+            Poll::Ready(())
         } else {
-            self.waker = Some(waker);
+            shared_state.waker = Some(cx.waker().clone());
             Poll::Pending
         }
     }
 }
 
-impl MyTask {
+impl TimeFuture {
 
-    pub fn new() -> MyTask {
-        use std::sync::mpsc::*;
-        let (tx,rx) = channel::<bool>();
-        MyTask { b: false, waker: None, rx, tx }
-    }
+    pub fn new(duration: Duration) -> TimeFuture {
+        let shared_state = Arc::new(
+            Mutex::new( SharedState {
+                completed: false,
+                waker: None,
+            })
+        );
 
-    pub fn waker(tx: &std::sync::mpsc::Sender<bool>) {
-        println!("\t\t ... wake, wake !!");
-        tx.send(true);
-    }
-
-    pub fn do_something(&self) {
-        use std::{thread::*, time::*};
-
-        let tx = self.tx.clone();
-        let waker = MyTask::waker;
-        spawn( move || {
-            println!("\tThread started");
-            sleep( Duration::from_secs(1));
-            println!("\tThread lapsed");
-            waker(&tx);
+        let thread_shared_state = shared_state.clone();
+        thread::spawn( move || {
+            thread::sleep(duration);
+            let mut ss = thread_shared_state.lock().unwrap();
+            ss.completed = true;
+            if let Some(waker) = ss.waker.take() {
+                waker.wake()
+            }
         });
-    }
-}
 
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        assert_eq!(1+1, 2);
+        TimeFuture { shared_state }
     }
 }
