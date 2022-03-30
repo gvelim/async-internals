@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+pub mod executor;
 
 pub struct TimeFuture {
     shared_state: Arc<Mutex<SharedState>>,
