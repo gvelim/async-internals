@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="exec mod">
+      <change afterPath="$PROJECT_DIR$/src/bin/vanilla.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -55,11 +56,27 @@
     <property name="project.structure.side.proportion" value="0.2" />
     <property name="settings.editor.selected.configurable" value="language.rust.cargo" />
   </component>
-  <component name="RunManager" selected="Cargo.Run main">
-    <configuration name="Run main" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
+  <component name="RunManager" selected="Cargo.Run vanilla">
+    <configuration name="Run main" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="command" value="run --package async-test --bin main" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <option name="channel" value="STABLE" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run vanilla" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package async-test --bin vanilla" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
       <option name="requiredFeatures" value="true" />
       <option name="allFeatures" value="false" />
       <option name="emulateTerminal" value="false" />
@@ -91,11 +108,10 @@
     <list>
       <item itemvalue="Cargo.Test" />
       <item itemvalue="Cargo.Run main" />
+      <item itemvalue="Cargo.Run vanilla" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Cargo.Run main" />
-        <item itemvalue="Cargo.Run main" />
         <item itemvalue="Cargo.Run main" />
         <item itemvalue="Cargo.Run main" />
       </list>
@@ -170,7 +186,14 @@
       <option name="project" value="LOCAL" />
       <updated>1648642466116</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="exec mod">
+      <created>1648650424673</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1648650424673</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
