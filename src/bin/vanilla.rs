@@ -4,14 +4,13 @@ use std::{
     pin::Pin,
     task::Poll,
 };
-use std::ops::Deref;
+use std::task::Waker;
 use std::time::{Duration, Instant};
 use futures::{
     Future,
     task::{Context, ArcWake},
     task
 };
-use crate::task::noop_waker;
 
 
 struct MyTask {
@@ -45,18 +44,26 @@ impl MyTask {
 
 struct MyTimer {
     lapsed: Arc<Mutex<bool>>,
+    waker: Arc<Mutex<Option<Waker>>>,
 }
 
 impl MyTimer {
     fn new(lapse: u64) -> MyTimer {
         let mt = MyTimer {
             lapsed: Arc::new( Mutex::new( false)),
+            waker: Arc::new(Mutex::new( None)),
         };
         let thread_lapsed = mt.lapsed.clone();
+        let thread_waker = mt.waker.clone();
         thread::spawn( move || {
             thread::sleep( Duration::new(lapse,0));
             let mut lapsed = thread_lapsed.lock().unwrap();
             *lapsed = true;
+            let mut waker = thread_waker.lock().unwrap();
+            match waker.take() {
+                None => println!("Finished without waker!!"),
+                Some(w) => w.wake(),
+            }
         });
         mt
     }
@@ -70,6 +77,8 @@ impl Future for MyTimer {
         if *lapsed == true {
             Poll::Ready("done")
         } else {
+            let mut waker = self.waker.lock().unwrap();
+            waker.replace( cx.waker().clone());
             Poll::Pending
         }
     }
@@ -78,15 +87,16 @@ impl Future for MyTimer {
 fn main() {
     let now = Instant::now();
 
-    let f = async {
-        let mt = MyTimer::new(3);
-        println!("Future: {}",mt.await);
-    };
+    let task = MyTask::new(
+        async {
+            let mt = MyTimer::new(3);
+            println!("Future: {}",mt.await);
+        }
+    );
 
-    let waker = noop_waker();
-    let mut cx = Context::from_waker(&waker);
-    let mut f = Box::pin(f);
-    while f.as_mut().poll(&mut cx).is_pending() {
+    let task = Arc::new(task);
+
+    while task.clone().poll().is_pending() {
         thread::sleep(Duration::from_millis(10));
         print!(".");
     }
