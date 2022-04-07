@@ -4,11 +4,14 @@ use std::{
     pin::Pin,
     task::Poll,
 };
+use std::ops::Deref;
+use std::time::{Duration, Instant};
 use futures::{
     Future,
     task::{Context, ArcWake},
     task
 };
+use crate::task::noop_waker;
 
 
 struct MyTask {
@@ -40,27 +43,52 @@ impl MyTask {
     }
 }
 
-async fn test() {
-    thread::spawn(move || {
-        println!("spawn thread");
-        thread::sleep(std::time::Duration::new(5, 0));
-        for i in 1..=10 {
-            print!("{},", i);
+struct MyTimer {
+    lapsed: Arc<Mutex<bool>>,
+}
+
+impl MyTimer {
+    fn new(lapse: u64) -> MyTimer {
+        let mt = MyTimer {
+            lapsed: Arc::new( Mutex::new( false)),
+        };
+        let thread_lapsed = mt.lapsed.clone();
+        thread::spawn( move || {
+            thread::sleep( Duration::new(lapse,0));
+            let mut lapsed = thread_lapsed.lock().unwrap();
+            *lapsed = true;
+        });
+        mt
+    }
+}
+
+impl Future for MyTimer {
+    type Output = &'static str;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let lapsed = self.lapsed.lock().unwrap();
+        if *lapsed == true {
+            Poll::Ready("done")
+        } else {
+            Poll::Pending
         }
-        println!("thread finished");
-    });
+    }
 }
 
 fn main() {
-    let f = async{
-        println!("Enter async...");
-        test().await;
-        println!("Exiting async...");
+    let now = Instant::now();
+
+    let f = async {
+        let mt = MyTimer::new(3);
+        println!("Future: {}",mt.await);
     };
-    let fut = Arc::new(MyTask::new(f));
 
-    while fut.clone().poll().is_pending() {
-        print!("z,");
+    let waker = noop_waker();
+    let mut cx = Context::from_waker(&waker);
+    let mut f = Box::pin(f);
+    while f.as_mut().poll(&mut cx).is_pending() {
+        thread::sleep(Duration::from_millis(10));
+        print!(".");
     }
-
+    println!("finished: {:?}", now.elapsed() )
 }
