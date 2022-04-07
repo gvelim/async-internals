@@ -13,6 +13,7 @@ use futures::{
 
 
 struct MyTask {
+    // has to be wrapped in Mutex so MyTask inherits the Send trait
     fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
 }
 impl ArcWake for MyTask {
@@ -44,19 +45,29 @@ struct MyTimer {
     waker: Arc<Mutex<Option<Waker>>>,
 }
 impl MyTimer {
+    // since MyTimer impl Future
+    // MyTimer::functions can be .await'ed
+    // causing MyTimer::poll() to be called
     fn new(lapse: u64) -> MyTimer {
+
+        // initialise Timer struct
         let mt = MyTimer {
-            lapsed: Arc::new( Mutex::new( false)),
+            lapsed: Arc::new(Mutex::new( false)),
             waker: Arc::new(Mutex::new( None)),
         };
-        let thread_lapsed = mt.lapsed.clone();
-        let thread_waker = mt.waker.clone();
 
+        // extract pointer references
+        let ref_lapsed = mt.lapsed.clone();
+        let ref_waker = mt.waker.clone();
+
+        // spawn timer
         thread::spawn( move || {
             thread::sleep( Duration::new(lapse,0));
-            let mut lapsed = thread_lapsed.lock().unwrap();
+            // lock attr and change value
+            let mut lapsed = ref_lapsed.lock().unwrap();
             *lapsed = true;
-            let mut waker = thread_waker.lock().unwrap();
+            // lock attr and callback using stored *fn()
+            let mut waker = ref_waker.lock().unwrap();
             match waker.take() {
                 None => println!("Finished without waker!!"),
                 Some(w) => w.wake(),
