@@ -4,9 +4,9 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="exec mod">
-      <change afterPath="$PROJECT_DIR$/src/bin/vanilla.rs" afterDir="false" />
+    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="vanilla: plain async/poll">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bin/vanilla.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bin/vanilla.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

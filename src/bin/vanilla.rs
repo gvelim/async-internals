@@ -1,15 +1,21 @@
 use std::{
     thread,
-    sync::Arc,
+    sync::{Arc,Mutex},
+    pin::Pin,
+    task::Poll,
 };
 use futures::{
     Future,
-    task::{Context, ArcWake, waker}
+    task::{Context, ArcWake},
+    task
 };
 
-struct MyWaker;
 
-impl ArcWake for MyWaker {
+struct MyTask {
+    fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
+}
+
+impl ArcWake for MyTask {
     fn wake(self: Arc<Self>) {
         println!("WooHoo... I woke up!!");
     }
@@ -18,22 +24,42 @@ impl ArcWake for MyWaker {
     }
 }
 
-fn main() {
-    let fut = async {
-        println!("Enter async...");
-        thread::sleep( std::time::Duration::new(5,0));
-        for i in 1..=10 {
-            print!("{},",i);
+impl MyTask {
+    fn new(fut: impl Future<Output=()> + Send + 'static) -> MyTask {
+        MyTask {
+            fut: Mutex::new(Box::pin(fut))
         }
+    }
+    fn poll(self: Arc<Self>) -> Poll<()> {
+
+        let waker = task::waker(self.clone());
+        let mut cx = Context::from_waker( &waker);
+
+        let mut f = self.fut.lock().unwrap();
+        f.as_mut().poll(&mut cx)
+    }
+}
+
+async fn test() {
+    thread::spawn(move || {
+        println!("spawn thread");
+        thread::sleep(std::time::Duration::new(5, 0));
+        for i in 1..=10 {
+            print!("{},", i);
+        }
+        println!("thread finished");
+    });
+}
+
+fn main() {
+    let f = async{
+        println!("Enter async...");
+        test().await;
         println!("Exiting async...");
     };
+    let fut = Arc::new(MyTask::new(f));
 
-    let mut fut = Box::pin(fut);
-
-    let waker = waker( Arc::new(MyWaker));
-    let mut cx = Context::from_waker( &waker);
-
-    while fut.as_mut().poll(&mut cx).is_pending() {
+    while fut.clone().poll().is_pending() {
         print!("z,");
     }
 
