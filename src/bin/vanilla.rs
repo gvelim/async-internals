@@ -2,10 +2,9 @@ use std::{
     thread,
     sync::{Arc,Mutex},
     pin::Pin,
-    task::Poll,
+    task::{Waker,Poll},
+    time::{Duration, Instant},
 };
-use std::task::Waker;
-use std::time::{Duration, Instant};
 use futures::{
     Future,
     task::{Context, ArcWake},
@@ -16,7 +15,6 @@ use futures::{
 struct MyTask {
     fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
 }
-
 impl ArcWake for MyTask {
     fn wake(self: Arc<Self>) {
         println!("WooHoo... I woke up!!");
@@ -25,7 +23,6 @@ impl ArcWake for MyTask {
         println!("WooHoo... I woke up!!");
     }
 }
-
 impl MyTask {
     fn new(fut: impl Future<Output=()> + Send + 'static) -> MyTask {
         MyTask {
@@ -46,7 +43,6 @@ struct MyTimer {
     lapsed: Arc<Mutex<bool>>,
     waker: Arc<Mutex<Option<Waker>>>,
 }
-
 impl MyTimer {
     fn new(lapse: u64) -> MyTimer {
         let mt = MyTimer {
@@ -55,6 +51,7 @@ impl MyTimer {
         };
         let thread_lapsed = mt.lapsed.clone();
         let thread_waker = mt.waker.clone();
+
         thread::spawn( move || {
             thread::sleep( Duration::new(lapse,0));
             let mut lapsed = thread_lapsed.lock().unwrap();
@@ -68,7 +65,6 @@ impl MyTimer {
         mt
     }
 }
-
 impl Future for MyTimer {
     type Output = &'static str;
 
@@ -84,17 +80,18 @@ impl Future for MyTimer {
     }
 }
 
+async fn wait_timer() -> &'static str {
+    MyTimer::new(3).await
+}
+
 fn main() {
     let now = Instant::now();
 
-    let task = MyTask::new(
+    let task = Arc::new(MyTask::new(
         async {
-            let mt = MyTimer::new(3);
-            println!("Future: {}",mt.await);
+            println!("Future: {}", wait_timer().await);
         }
-    );
-
-    let task = Arc::new(task);
+    ));
 
     while task.clone().poll().is_pending() {
         thread::sleep(Duration::from_millis(10));

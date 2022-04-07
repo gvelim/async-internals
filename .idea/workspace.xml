@@ -4,10 +4,7 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="MyTask:&#10;- Poll()&#10;- creating waker + context&#10;- calling Poll()">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bin/vanilla.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bin/vanilla.rs" afterDir="false" />
-    </list>
+    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="MyTimer&#10;+ moving async into a fn()&#10;&#10;understanding return values" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -207,7 +204,28 @@
       <option name="project" value="LOCAL" />
       <updated>1649330274270</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="MyTimer&#10;+ Waker support&#10;&#10;MyTimer::Poll() stores ref to waker and calls it once timer finishes">
+      <created>1649337529029</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1649337529029</updated>
+    </task>
+    <task id="LOCAL-00013" summary="MyTimer&#10;+ task::poll()&#10;+ triggers task::waker()">
+      <created>1649338179502</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1649338179502</updated>
+    </task>
+    <task id="LOCAL-00014" summary="MyTimer&#10;+ moving async into a fn()&#10;&#10;understanding return values">
+      <created>1649338923914</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1649338923914</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -228,7 +246,10 @@
     <MESSAGE value="Async waking &#10;- doSomething() spawns thread&#10;- non-blocking Polling RX channel, carrying work&#10;- Thread signals by calling waker()&#10;- Poll returns Ready&#10;- main exits" />
     <MESSAGE value="exec mod" />
     <MESSAGE value="MyTask:&#10;- Poll()&#10;- creating waker + context&#10;- calling Poll()" />
-    <option name="LAST_COMMIT_MESSAGE" value="MyTask:&#10;- Poll()&#10;- creating waker + context&#10;- calling Poll()" />
+    <MESSAGE value="MyTimer&#10;+ Waker support&#10;&#10;MyTimer::Poll() stores ref to waker and calls it once timer finishes" />
+    <MESSAGE value="MyTimer&#10;+ task::poll()&#10;+ triggers task::waker()" />
+    <MESSAGE value="MyTimer&#10;+ moving async into a fn()&#10;&#10;understanding return values" />
+    <option name="LAST_COMMIT_MESSAGE" value="MyTimer&#10;+ moving async into a fn()&#10;&#10;understanding return values" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
