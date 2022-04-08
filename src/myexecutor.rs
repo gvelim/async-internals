@@ -11,6 +11,11 @@ use crate::mytask::MyTask;
 pub struct MyExecutor {
     queue: VecDeque<MyTask>,
 }
+impl Default for MyExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MyExecutor {
     pub fn new() -> MyExecutor {

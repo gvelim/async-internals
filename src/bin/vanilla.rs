@@ -53,7 +53,7 @@ impl Future for MyTimer {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut state = self.state.lock().unwrap();
-        if state.lapsed == true {
+        if state.lapsed {
             Poll::Ready("done")
         } else {
             state.waker.replace(cx.waker().clone());
