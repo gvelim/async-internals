@@ -4,19 +4,17 @@ use std::{
     pin::Pin,
     task::{Waker,Poll},
     time::{Duration, Instant},
+    collections::vec_deque::VecDeque,
 };
-use std::collections::VecDeque;
 use futures::{
     Future,
     task::{Context, ArcWake},
     task
 };
 
-struct MyTask {
-    // has to be wrapped in Mutex so MyTask inherits the Send trait
-    fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
-}
-impl ArcWake for MyTask {
+struct MyWaker;
+
+impl ArcWake for MyWaker {
     fn wake(self: Arc<Self>) {
         println!("\nWooHoo... I woke up!!");
     }
@@ -24,15 +22,25 @@ impl ArcWake for MyTask {
         println!("\nWooHoo... I woke up!!");
     }
 }
+
+struct MyTask {
+    // has to be wrapped in Mutex so MyTask inherits the Send trait
+    fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
+    waker: Arc<MyWaker>,
+    lapsed: std::time::Instant
+}
+
 impl MyTask {
     fn new(fut: impl Future<Output=()> + Send + 'static) -> MyTask {
         MyTask {
-            fut: Mutex::new(Box::pin(fut))
+            fut: Mutex::new(Box::pin(fut)),
+            waker: Arc::new(MyWaker),
+            lapsed: std::time::Instant::now()
         }
     }
-    fn poll(self: Arc<Self>) -> Poll<()> {
+    fn poll(&self) -> Poll<()> {
 
-        let waker = task::waker(self.clone());
+        let waker = task::waker(self.waker.clone());
         let mut cx = Context::from_waker( &waker);
 
         let mut f = self.fut.lock().unwrap();
@@ -92,7 +100,7 @@ impl Future for MyTimer {
 }
 
 struct MyExecutor {
-    queue: VecDeque<Arc<MyTask>>,
+    queue: VecDeque<MyTask>,
 }
 
 impl MyExecutor {
@@ -100,14 +108,16 @@ impl MyExecutor {
         MyExecutor { queue: VecDeque::new() }
     }
     fn spawn(&mut self, fut: impl Future<Output=()> + Send + 'static) {
-        self.queue.push_back(Arc::new(MyTask::new(fut)));
+        self.queue.push_back(MyTask::new(fut));
     }
     fn run(&mut self) {
         while let Some(task) = self.queue.pop_front().take() {
-            if task.clone().poll().is_pending() {
-                self.queue.push_back(task.clone());
+            if task.poll().is_pending() {
+                self.queue.push_back(task);
                 thread::sleep(Duration::from_millis(10));
                 print!(".");
+            } else {
+                println!("Task took {:.2?}\"", task.lapsed.elapsed());
             }
         }
     }
@@ -122,16 +132,12 @@ fn main() {
 
     let now = Instant::now();
 
-    exec.spawn(async {
-        println!("F1: {}", wait_timer(3).await);
-    });
-    exec.spawn(async {
-        println!("F2: {}", MyTimer::new(2).await);
-    });
-    exec.spawn(async {
-        println!("F3: {}", MyTimer::new(1).await);
-    });
+    for i in (1..=10).rev() {
+        exec.spawn(async move {
+            println!("F{}: {}", i, MyTimer::new(i).await);
+        });
+    }
 
     exec.run();
-    println!("finished: {:?}", now.elapsed() )
+    println!("Total time: {:.2?}", now.elapsed() )
 }
