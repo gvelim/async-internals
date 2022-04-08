@@ -1,3 +1,4 @@
+use rand::prelude::*;
 use std::{
     thread,
     sync::{Arc,Mutex},
@@ -68,13 +69,16 @@ async fn wait_timer(lapse: u64) -> &'static str {
 }
 
 fn main() {
+
+
     let mut exec = MyExecutor::new();
 
     let now = Instant::now();
 
     for i in (1..=10).rev() {
+        let d: u64 = thread_rng().gen_range(1..=10);
         exec.spawn(async move {
-            println!("F{}: {}", i, wait_timer(i).await);
+            println!("F{}: {}", i, wait_timer(d).await );
         });
     }
 
