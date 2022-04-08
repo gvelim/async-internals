@@ -12,7 +12,6 @@ use futures::{
     task
 };
 
-
 struct MyTask {
     // has to be wrapped in Mutex so MyTask inherits the Send trait
     fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
@@ -47,7 +46,7 @@ struct MyTimer {
 }
 impl MyTimer {
     // since MyTimer impl Future
-    // MyTimer::functions can be .await'ed
+    // MyTimer::functions can be .awaited
     // causing MyTimer::poll() to be called
     fn new(lapse: u64) -> MyTimer {
 
@@ -92,29 +91,47 @@ impl Future for MyTimer {
     }
 }
 
-async fn wait_timer() -> &'static str {
-    MyTimer::new(3).await
+struct MyExecutor {
+    queue: VecDeque<Arc<MyTask>>,
+}
+
+impl MyExecutor {
+    fn new() -> MyExecutor {
+        MyExecutor { queue: VecDeque::new() }
+    }
+    fn spawn(&mut self, fut: impl Future<Output=()> + Send + 'static) {
+        self.queue.push_back(Arc::new(MyTask::new(fut)));
+    }
+    fn run(&mut self) {
+        while let Some(task) = self.queue.pop_front().take() {
+            if task.clone().poll().is_pending() {
+                self.queue.push_back(task.clone());
+                thread::sleep(Duration::from_millis(10));
+                print!(".");
+            }
+        }
+    }
+}
+
+async fn wait_timer(lapse: u64) -> &'static str {
+    MyTimer::new(lapse).await
 }
 
 fn main() {
-    let mut queue: VecDeque<Arc<MyTask>> = VecDeque::new();
+    let mut exec = MyExecutor::new();
 
     let now = Instant::now();
 
-    queue.push_back(Arc::new(
-        MyTask::new(async {
-            println!("F1: {}", wait_timer().await);
-            println!("F2: {}", MyTimer::new(2).await);
-            println!("F3: {}", MyTimer::new(1).await);
-        }))
-    );
+    exec.spawn(async {
+        println!("F1: {}", wait_timer(3).await);
+    });
+    exec.spawn(async {
+        println!("F2: {}", MyTimer::new(2).await);
+    });
+    exec.spawn(async {
+        println!("F3: {}", MyTimer::new(1).await);
+    });
 
-    while let Some(task) = queue.pop_front().take() {
-        if task.clone().poll().is_pending() {
-            queue.push_back(task.clone());
-            thread::sleep(Duration::from_millis(10));
-            print!(".");
-        }
-    }
+    exec.run();
     println!("finished: {:?}", now.elapsed() )
 }
