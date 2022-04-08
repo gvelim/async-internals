@@ -5,6 +5,7 @@ use std::{
     task::{Waker,Poll},
     time::{Duration, Instant},
 };
+use std::collections::VecDeque;
 use futures::{
     Future,
     task::{Context, ArcWake},
@@ -18,10 +19,10 @@ struct MyTask {
 }
 impl ArcWake for MyTask {
     fn wake(self: Arc<Self>) {
-        println!("WooHoo... I woke up!!");
+        println!("\nWooHoo... I woke up!!");
     }
     fn wake_by_ref(_: &Arc<Self>) {
-        println!("WooHoo... I woke up!!");
+        println!("\nWooHoo... I woke up!!");
     }
 }
 impl MyTask {
@@ -96,17 +97,24 @@ async fn wait_timer() -> &'static str {
 }
 
 fn main() {
+    let mut queue: VecDeque<Arc<MyTask>> = VecDeque::new();
+
     let now = Instant::now();
 
-    let task = Arc::new(MyTask::new(
-        async {
-            println!("Future: {}", wait_timer().await);
-        }
-    ));
+    queue.push_back(Arc::new(
+        MyTask::new(async {
+            println!("F1: {}", wait_timer().await);
+            println!("F2: {}", MyTimer::new(2).await);
+            println!("F3: {}", MyTimer::new(1).await);
+        }))
+    );
 
-    while task.clone().poll().is_pending() {
-        thread::sleep(Duration::from_millis(10));
-        print!(".");
+    while let Some(task) = queue.pop_front().take() {
+        if task.clone().poll().is_pending() {
+            queue.push_back(task.clone());
+            thread::sleep(Duration::from_millis(10));
+            print!(".");
+        }
     }
     println!("finished: {:?}", now.elapsed() )
 }

@@ -4,7 +4,10 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="MyTimer&#10;+ moving async into a fn()&#10;&#10;understanding return values" />
+    <list default="true" id="4e7bd132-f93d-4287-a410-8f16c4df6be2" name="Changes" comment="MyTimer&#10;+ moving async into a fn()&#10;&#10;understanding return values">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bin/vanilla.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/bin/vanilla.rs" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -51,7 +54,7 @@
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.0" />
     <property name="project.structure.side.proportion" value="0.2" />
-    <property name="settings.editor.selected.configurable" value="language.rust.cargo" />
+    <property name="settings.editor.selected.configurable" value="language.rust.cargo.check" />
   </component>
   <component name="RunManager" selected="Cargo.Run vanilla">
     <configuration name="Run main" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
