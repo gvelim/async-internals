@@ -1,75 +1,18 @@
 use rand::prelude::*;
-use std::{
-    thread,
-    sync::{Arc,Mutex},
-    pin::Pin,
-    task::{Context,Waker,Poll},
-    future::Future,
-    time::{Duration, Instant},
+use std::time::{Duration, Instant};
+use futures::executor;
+use futures::executor::{LocalPool, ThreadPool};
+use futures::task::SpawnExt;
+use async_test::myfuture::{
+    MyTimer,
+    myexecutor::MyExecutor
 };
-
-use async_test::myexecutor::MyExecutor;
-
-struct State {
-    lapsed: bool,
-    waker: Option<Waker>,
-}
-struct MyTimer {
-    state: Arc<Mutex<State>>,
-}
-impl MyTimer {
-    // since MyTimer impl Future
-    // MyTimer::functions can be .awaited
-    // causing MyTimer::poll() to be called
-    fn new(lapse: u64) -> MyTimer {
-
-        // initialise Timer struct
-        let mt = MyTimer {
-            state: Arc::new(Mutex::new(
-                State {
-                    lapsed: false,
-                    waker: None,
-                }))
-        };
-
-        // extract pointer references
-        let state = mt.state.clone();
-        // spawn timer
-        thread::spawn( move || {
-            thread::sleep( Duration::new(lapse,0));
-            // lock attr and change value
-            let mut state = state.lock().unwrap();
-            state.lapsed = true;
-            // lock attr and callback using stored *fn()
-            match state.waker.take() {
-                None => println!("Finished without waker!!"),
-                Some(w) => w.wake(),
-            }
-        });
-        mt
-    }
-}
-impl Future for MyTimer {
-    type Output = &'static str;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut state = self.state.lock().unwrap();
-        if state.lapsed {
-            Poll::Ready("done")
-        } else {
-            state.waker.replace(cx.waker().clone());
-            Poll::Pending
-        }
-    }
-}
-
 
 async fn wait_timer(lapse: u64) -> &'static str {
     MyTimer::new(lapse).await
 }
 
-fn main() {
-
+fn run_myexec() {
 
     let mut exec = MyExecutor::new();
 
@@ -84,4 +27,26 @@ fn main() {
 
     exec.run();
     println!("Total time: {:.2?}", now.elapsed() )
+}
+
+fn run_localexec() {
+    let mut pool = executor::LocalPool::new();
+
+    for i in (1..=10).rev() {
+        let d: u64 = thread_rng().gen_range(1..=10);
+        pool.spawner()
+            .spawn(async move {
+                println!("F{}:{}", i, MyTimer::new(d).await);
+            });
+    }
+
+    pool.run();
+
+}
+
+fn main() {
+    println!("Running futures using myexecutor");
+    run_myexec();
+    println!("Running futures using futures::executor");
+    run_localexec();
 }

@@ -6,11 +6,12 @@ use std::{
     collections::vec_deque::VecDeque,
 };
 
-use crate::mytask::MyTask;
+use crate::myfuture::mytask::MyTask;
 
 pub struct MyExecutor {
     queue: VecDeque<MyTask>,
 }
+
 impl Default for MyExecutor {
     fn default() -> Self {
         Self::new()

@@ -8,7 +8,7 @@ use futures::{
     task
 };
 
-use crate::mywaker::MyWaker;
+use crate::myfuture::mywaker::MyWaker;
 
 pub struct MyTask {
     // has to be wrapped in Mutex so MyTask inherits the Send trait

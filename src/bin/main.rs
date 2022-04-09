@@ -1,4 +1,4 @@
-use async_test::{TimeFuture, executor};
+use async_test::rustfuture::{TimeFuture,executor};
 use std::time::Duration;
 use rand::prelude::*;
 

@@ -30,11 +30,11 @@ fn main() {
         // responsible for transmission
         pool.spawn_ok(fut_tx_result);
 
-        let fut_values = rx.map(|v| v * 2).collect();
+        let fut_rx_values = rx.map(|v| v * 2).collect();
 
         // Use the executor provided to this async block to wait for the
         // future to complete.
-        fut_values.await
+        fut_rx_values.await
     };
 
     // Actually execute the above future, which will invoke Future::poll and
