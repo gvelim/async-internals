@@ -17,6 +17,7 @@ struct State {
 }
 pub struct MyTimer {
     state: Arc<Mutex<State>>,
+    str: String,
 }
 impl MyTimer {
     // since MyTimer impl Future
@@ -30,7 +31,8 @@ impl MyTimer {
                 State {
                     lapsed: false,
                     waker: None,
-                }))
+                })),
+            str: lapse.to_string(),
         };
 
         // extract pointer references
@@ -51,12 +53,12 @@ impl MyTimer {
     }
 }
 impl Future for MyTimer {
-    type Output = &'static str;
+    type Output = String;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut state = self.state.lock().unwrap();
         if state.lapsed {
-            Poll::Ready("done")
+            Poll::Ready(self.str.clone())
         } else {
             state.waker.replace(cx.waker().clone());
             Poll::Pending

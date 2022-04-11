@@ -2,13 +2,14 @@ use rand::prelude::*;
 use std::time::Instant;
 use futures::executor;
 use futures::executor::{block_on};
+use futures::future::join_all;
 use futures::task::SpawnExt;
 use async_test::myfuture::{
     MyTimer,
     myexecutor::MyExecutor
 };
 
-async fn wait_timer(lapse: u64) -> &'static str {
+async fn wait_timer(lapse: u64) -> String {
     MyTimer::new(lapse).await
 }
 
@@ -18,7 +19,7 @@ fn run_myexec() {
 
     let now = Instant::now();
 
-    for i in (1..=10).rev() {
+    for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         exec.spawn(async move {
             println!("F{}: {}", i, wait_timer(d).await );
@@ -32,7 +33,7 @@ fn run_myexec() {
 fn run_localexec() {
     let mut pool = executor::LocalPool::new();
 
-    for i in (1..=10).rev() {
+    for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         pool.spawner()
             .spawn(async move {
@@ -43,20 +44,23 @@ fn run_localexec() {
 }
 
 fn run_threadpool_exec() {
-    let pool = executor::ThreadPool::new().expect("Error: cannot initiate pool");
+    // let pool = executor::ThreadPool::new().expect("Error: cannot initiate pool");
     let mut hnd = Vec::new();
 
-    for i in (1..=10).rev() {
-        let d: u64 = thread_rng().gen_range(1..=10);
-        let h = pool.spawn_with_handle(async move {
-                println!("F{}:{}", i, MyTimer::new(d).await);
-            }).unwrap();
-        hnd.push(h);
-    }
-    for h in hnd {
-        print!("{:?} = ", h);
-        println!("{:?}", block_on(h));
-    }
+    let output = async move {
+        for i in 1..=20 {
+            let d: u64 = thread_rng().gen_range(1..=10);
+            hnd.push( async move {
+                let output = MyTimer::new(d).await;
+                println!("F{}:{}", i, output);
+                output
+            });
+        }
+        join_all(hnd).await
+    };
+
+    let output = block_on(output);
+    println!("{:?}", output);
 }
 
 fn main() {
