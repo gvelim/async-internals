@@ -47,19 +47,16 @@ fn run_threadpool_exec() {
     // let pool = executor::ThreadPool::new().expect("Error: cannot initiate pool");
     let mut hnd = Vec::new();
 
-    let output = async move {
-        for i in 1..=20 {
-            let d: u64 = thread_rng().gen_range(1..=10);
-            hnd.push( async move {
-                let output = MyTimer::new(d).await;
-                println!("F{}:{}", i, output);
-                output
-            });
-        }
-        join_all(hnd).await
-    };
+    for i in 1..=20 {
+        let d: u64 = thread_rng().gen_range(1..=10);
+        hnd.push( async move {
+            let output = MyTimer::new(d).await;
+            println!("F{}:{}", i, output);
+            output
+        });
+    }
 
-    let output = block_on(output);
+    let output = block_on(join_all(hnd) );
     println!("{:?}", output);
 }
 
