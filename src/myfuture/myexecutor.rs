@@ -32,8 +32,7 @@ impl MyExecutor {
                 thread::sleep(Duration::from_millis(10));
                 print!(".");
             } else {
-                println!("Task completed in {:.2?}", task.lapsed.elapsed());
-                println!("waker() RefCount: {}", Arc::strong_count(&task.waker));
+                println!("Task completed in {:.2?}; waker() RefCount: {}", task.lapsed.elapsed(), Arc::strong_count(&task.waker));
             }
         }
     }
