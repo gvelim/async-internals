@@ -1,4 +1,5 @@
 use core::{pin::Pin, task::*, future::*};
+use std::thread;
 
 struct MyFuture(i32);
 impl Future for MyFuture {
@@ -102,6 +103,7 @@ fn test_future_callback() {
     // Make it a waker
     impl ArcWake for MyTask<'_> {
         fn wake_by_ref(arc_self: &Arc<Self>) {
+            println!("thread {:?}",thread::current().id());
             arc_self.1
                 .as_ref()
                 .unwrap()
@@ -142,13 +144,19 @@ fn test_future_callback() {
         async {
             Timer::start(Duration::from_millis(3000)).await
         };
-
     let mut exec = Executor::init();
-    exec.spawn(c);
-    exec.spawn( async { println!("Finished: {}", my_async_fn(5).await); } );
-    exec.spawn( async { println!("Finished: {}", my_async_fn(10).await); } );
+
+    for i in 1..10 {
+        exec.spawn(async move {
+            Timer::start(Duration::from_millis(i*1000)).await
+        });
+    }
+    exec.spawn( async {
+        println!("Finished: {}", my_async_fn(5).await);
+        println!("Finished: {}", my_async_fn(10).await);
+    });
     exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
-    exec.spawn( async { println!("Finished: {}", my_async_fn(1).await); } );
+    exec.spawn( async { println!("Finished: {}", an_async_fn(1).await); } );
     exec.drop_spawner();
     exec.run();
 
