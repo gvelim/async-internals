@@ -46,9 +46,7 @@ fn main() {
 fn test_future_callback() {
     use std::sync::{Arc, Mutex, mpsc::{Receiver,SyncSender}};
     use std::time::*;
-    use futures::{task::noop_waker, executor::block_on};
-    use futures::future::BoxFuture;
-    use futures::task::{ArcWake, waker_ref};
+    use futures::{future::BoxFuture, task::{ArcWake, waker_ref}};
     use std::thread::JoinHandle;
 
 
@@ -66,7 +64,7 @@ fn test_future_callback() {
             let mut state = self.0.lock().unwrap();
             if state.1 {
                 println!("Timer::Lapsed");
-                return Poll::Ready(())    
+                return Poll::Ready(())
             } else {
                 // have we spawned a thread already ?
                 if state.2.is_none() {
@@ -75,10 +73,10 @@ fn test_future_callback() {
                     let timeout = state.0.clone();       // copy timeout value
                     let ts = self.0.clone();     // clone Arc<T>
                     state.2 = Some(
-                        std::thread::spawn( move || {    
-                            std::thread::park_timeout(timeout);
+                        thread::spawn( move || {
+                            thread::park_timeout(timeout);
                             println!("Timer::Thread Lapsed");
-                            
+
                             ts.lock()
                                 .and_then(|mut state| {
                                     println!("Timer::Locked & mutate");
@@ -94,7 +92,7 @@ fn test_future_callback() {
                 }
             }
             println!("Timer::Not Lapsed");
-            Poll::Pending   
+            Poll::Pending
         }
     }
 
@@ -103,7 +101,7 @@ fn test_future_callback() {
     // Make it a waker
     impl ArcWake for MyTask<'_> {
         fn wake_by_ref(arc_self: &Arc<Self>) {
-            println!("thread {:?}",thread::current().id());
+            println!("Wake from {:?}",thread::current().id());
             arc_self.1
                 .as_ref()
                 .unwrap()
@@ -139,36 +137,24 @@ fn test_future_callback() {
         }
     }
 
-    // let c = Timer::start(Duration::from_millis(1000));
-    let c =
-        async {
-            Timer::start(Duration::from_millis(3000)).await
-        };
     let mut exec = Executor::init();
 
-    for i in 1..10 {
+    for i in 1..=5 {
         exec.spawn(async move {
             Timer::start(Duration::from_millis(i*1000)).await
         });
     }
     exec.spawn( async {
+        Timer::start(Duration::from_millis(3000)).await;
         println!("Finished: {}", my_async_fn(5).await);
         println!("Finished: {}", my_async_fn(10).await);
     });
     exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
     exec.spawn( async { println!("Finished: {}", an_async_fn(1).await); } );
+
     exec.drop_spawner();
     exec.run();
 
-    // let task = &Arc::new(MyTask(Mutex::new(Box::pin(c)),None));
-    // let waker = waker_ref(task);
-    // let ctx = &mut Context::from_waker( &waker );
-    // while task.0.lock().unwrap().as_mut().poll(ctx).is_pending() {}
-
-    // let mut c = Box::pin(c);
-    // while c.as_mut().poll(ctx).is_pending() {}
-
-    // block_on(c);
 }
 
 #[test]
@@ -241,7 +227,7 @@ fn test_simple_task_waker() {
     // Make it a waker
     impl ArcWake for MyTask<'_> {
         fn wake_by_ref(arc_self: &Arc<Self>) { 
-            print!("Waker Location:({:?},{:p})->", std::thread::current().id(), &arc_self);
+            print!("Waker Location:({:?},{:p})->", thread::current().id(), &arc_self);
         }
     }
 
@@ -260,7 +246,7 @@ fn test_simple_task_waker() {
     let mut ctx = Context::from_waker(&wk);
 
     let _n = loop {
-        print!("Poll Task:({:?})->", std::thread::current().id());
+        print!("Poll Task:({:?})->", thread::current().id());
         // access the task : t.0 (Arc<> dereferences here)
         // Lock access to the task: lock().unwrap() (we infer no poisoning here)
         // get mutable access into the Boxed future
