@@ -42,6 +42,12 @@ fn main() {
     println!("Async completed! {:?}", block_on(f2));
 }
 
+/// Demonstrate an improved version of the basic Executor that Polls until all futures have returned
+/// - Futures are now calling awake() from outside the poll(), that is, from a separate thread to the executor
+/// - Executor run() method now uses a message queue that awaits to received and process for atomic tasks references
+/// - Executor spawn() method now pushes atomic task references onto the message queue for execution
+/// - Waker() now pushes atomic references of awaken tasks down the message queue for execution 
+/// 
 #[test]
 fn test_future_callback() {
     use std::sync::{Arc, Mutex, mpsc::{Receiver,SyncSender}};
@@ -157,6 +163,13 @@ fn test_future_callback() {
 
 }
 
+/// Demonstrate a very basic Executor that Polls until all futures have returned
+/// - Holds a vector of atomic references to Tasks
+/// - Uses a spawn() method to wrap a future into a trait object and push its atomic reference onto the vector queue
+/// - Uses a run() method to iterate over the queue and call the Poll() method from each task
+/// Limitations:
+/// The executor doesn't make use of waker() to be notified as a result it loops over and over again until all futures complete
+/// The futures used do not put the executor into sleep since they call wake() within poll()
 #[test]
 fn test_simple_executor() {
     use std::sync::Arc;
