@@ -34,11 +34,184 @@ fn main() {
     use futures::executor::block_on;
 
     let f1 = my_async_fn(5);
-    let out = block_on(f1);
-    println!("Async completed! {:?}", out);
+    println!("Async completed! {:?}", block_on(f1));
+    let f2 = async {
+        an_async_fn(10).await
+    };
+    println!("Async completed! {:?}", block_on(f2));
 }
 
+#[test]
+fn test_future_callback() {
+    use std::sync::{Arc, Mutex, mpsc::{Receiver,SyncSender}};
+    use std::time::*;
+    use futures::{task::noop_waker, executor::block_on};
+    use futures::future::BoxFuture;
+    use futures::task::{ArcWake, waker_ref};
+    use std::thread::JoinHandle;
 
+
+    struct Data(Duration, bool, Option<JoinHandle<()>>);
+    struct Timer(Arc<Mutex<Data>>);
+    impl Timer {
+        fn start(timeout: Duration) -> impl Future<Output = ()> {
+            println!("Timer::start()");
+            Timer(Arc::new(Mutex::new(Data(timeout,false, None))))
+        }
+    }
+    impl Future for Timer {
+        type Output = ();
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            let mut state = self.0.lock().unwrap();
+            if state.1 {
+                println!("Timer::Lapsed");
+                return Poll::Ready(())    
+            } else {
+                // have we spawned a thread already ?
+                if state.2.is_none() {
+                    println!("Timer::Launch Thread");
+                    let waker = cx.waker().clone();        // clone ArcWaker reference
+                    let timeout = state.0.clone();       // copy timeout value
+                    let ts = self.0.clone();     // clone Arc<T>
+                    state.2 = Some(
+                        std::thread::spawn( move || {    
+                            std::thread::park_timeout(timeout);
+                            println!("Timer::Thread Lapsed");
+                            
+                            ts.lock()
+                                .and_then(|mut state| {
+                                    println!("Timer::Locked & mutate");
+                                    state.1 = true;
+                                    Ok(())
+                                })
+                                .expect("Mutex poisoned");
+
+                            println!("Timer::Waker::wake()");
+                            waker.wake();
+                        })
+                    );
+                }
+            }
+            println!("Timer::Not Lapsed");
+            Poll::Pending   
+        }
+    }
+
+    // Define a Task that holds a Boxed Future Object on the heap
+    struct MyTask<'a>(Mutex<BoxFuture<'a, ()>>, Option<SyncSender<Arc<Self>>>);
+    // Make it a waker
+    impl ArcWake for MyTask<'_> {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            arc_self.1
+                .as_ref()
+                .unwrap()
+                .send(arc_self.clone())
+                .expect("Cannot queue task");
+        }
+    }
+    struct Executor<'a> {
+        queue: Receiver<Arc<MyTask<'a>>>,
+        sender: Option<SyncSender<Arc<MyTask<'a>>>>
+    }
+    impl<'a> Executor<'a> {
+        fn init() -> Executor<'a> {
+            let (sender,queue) = std::sync::mpsc::sync_channel(1000);
+            Executor { queue, sender: Some(sender) }
+        }
+        fn spawn(&mut self, f: impl Future<Output=()> + Send + 'a) {
+            let t = MyTask(Mutex::new(Box::pin(f)),Some(self.sender.as_ref().unwrap().clone()));
+            self.sender.as_ref().unwrap().send(Arc::new(t)).expect("cannot push in the queue");
+        }
+        fn drop_spawner(&mut self) {
+            let s = self.sender.take();
+            drop(s);
+        }
+        fn run(&mut self) {
+            while let Ok(task) = self.queue.recv() {
+                println!("Exec::Received()");
+                let waker = waker_ref(&task);
+                let ctx = &mut Context::from_waker( &waker );
+
+                task.0.lock().unwrap().as_mut().poll(ctx).is_pending();
+            }
+        }
+    }
+
+    // let c = Timer::start(Duration::from_millis(1000));
+    let c =
+        async {
+            Timer::start(Duration::from_millis(3000)).await
+        };
+
+    let mut exec = Executor::init();
+    exec.spawn(c);
+    exec.spawn( async { println!("Finished: {}", my_async_fn(5).await); } );
+    exec.spawn( async { println!("Finished: {}", my_async_fn(10).await); } );
+    exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
+    exec.spawn( async { println!("Finished: {}", my_async_fn(1).await); } );
+    exec.drop_spawner();
+    exec.run();
+
+    // let task = &Arc::new(MyTask(Mutex::new(Box::pin(c)),None));
+    // let waker = waker_ref(task);
+    // let ctx = &mut Context::from_waker( &waker );
+    // while task.0.lock().unwrap().as_mut().poll(ctx).is_pending() {}
+
+    // let mut c = Box::pin(c);
+    // while c.as_mut().poll(ctx).is_pending() {}
+
+    // block_on(c);
+}
+
+#[test]
+fn test_simple_executor() {
+    use std::sync::Arc;
+    use futures::future::BoxFuture;
+    use futures::task::{ArcWake, waker_ref};
+    use std::sync::Mutex;
+    use std::collections::VecDeque;
+    
+    // Define a Task that holds a Boxed Future Object on the heap
+    struct MyTask<'a>(Mutex<BoxFuture<'a, ()>>,usize);
+    // Make it a waker
+    impl ArcWake for MyTask<'_> {
+        fn wake_by_ref(arc_self: &Arc<Self>) { 
+            print!("Waker Location:({:02})->", arc_self.1);
+        }
+    }
+
+    struct MyExecutor<'a> {
+        tasks: VecDeque<Arc<MyTask<'a>>>
+    }
+    impl MyExecutor<'_> {
+        fn spawn(&mut self, f: impl Future<Output=()> + Send + 'static) {
+            self.tasks.push_back(Arc::new(
+                MyTask(Mutex::new(Box::pin(f)), self.tasks.len())
+            ))
+        }
+        fn run(&mut self) {
+            while let Some(task) = self.tasks.pop_front() {
+                let waker = waker_ref(&task);
+                let mut ctx = Context::from_waker(&waker);
+
+                if task.0.lock().unwrap().as_mut().poll(&mut ctx).is_pending() {
+                    self.tasks.push_back(task)
+                }
+                
+            }
+        }
+    }
+
+    let mut exec = MyExecutor { tasks: VecDeque::new() };
+
+    exec.spawn( async { println!("Finished: {}", my_async_fn(5).await); } );
+    exec.spawn( async { println!("Finished: {}", my_async_fn(10).await); } );
+    exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
+    exec.spawn( async { println!("Finished: {}", my_async_fn(1).await); } );
+
+    exec.run();
+
+}
 /// Demonstrating the fundamentals for an executor
 /// - A task that holds a Mutex<BoxedFuture> ; Task needs Mutex so it inherits the 'Sync' in addition to 'Sent' traits
 /// - A task that Wakes by implementing the 'ArcWaker' trait
@@ -46,7 +219,7 @@ fn main() {
 /// (a) create the task's context from 'Arc<impl ArcWaker>'; derived from 'Arc<MyTask>'
 /// (b) exclusively 'lock()' the Task (which is 'Sync') and get access to the boxed future (which is 'Send')
 /// (c) 'poll()' the future with the task's context
-/// (d) observe the future's use of the 'waker_by_ref()' callback aiming to trigger polling again 
+/// (d) observe the future's use of the 'waker_by_ref()' callback aiming to trigger polling again
 ///
 #[test]
 fn test_simple_task_waker() {
@@ -138,10 +311,10 @@ fn test_manually_poll_future() {
 
 }
 
-/// Demonstrate mutliple futures executing concurently
+/// Demonstrate multiple futures executing concurrently
 /// Explain here that Join() returns a root-future that contains all other futures, 
-/// hence you have a tree of futures that is hieratchically polled
-/// Explain you can shape sequencial and concurent execution paths to meet your needs
+/// hence you have a tree of futures that is hierarchically polled
+/// Explain you can shape sequential and concurrent execution paths to meet your needs
 #[test]
 fn test_join_up_futures() {
     use futures::executor::block_on;
@@ -174,7 +347,7 @@ fn test_run_future_on_local_pool() {
 
 /// Demonstrate async block relationship to Future Objects
 /// Explain async{} blocks return a future that need to be polled. 
-/// Explain that futures are executed hierachically with root sequencially f1,f2,f3 futures 
+/// Explain that futures are executed hierarchically with root sequentially f1,f2,f3 futures
 #[test]
 fn test_block_on_future_with_async() {
     use futures::executor::block_on;
@@ -192,7 +365,7 @@ fn test_block_on_future_with_async() {
 /// Reason: We never notify the executor to call us back!!
 /// Futures if not ready once called, must notify the executor when "ready to be called back"
 /// Explain Futures unless Polled, occupy now resources
-/// Explain Futures are desugared into state machines, yelding control and continuing executing from where they last paused
+/// Explain Futures are desugared into state machines, yielding control and continuing executing from where they last paused
 #[test]
 fn test_block_on_future() {
     use futures::executor::block_on;
