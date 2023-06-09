@@ -1,5 +1,4 @@
 use core::{pin::Pin, task::*, future::*};
-use std::thread;
 
 struct MyFuture(i32);
 impl Future for MyFuture {
@@ -43,8 +42,8 @@ fn main() {
 }
 
 /// Demonstrate an improved version of the basic Executor that Polls until all futures have returned
-/// - Futures are now calling awake() from outside the poll(), that is, from a separate thread to the executor
-/// - Executor run() method now uses a message queue that awaits to received and process for atomic tasks references
+/// - Futures are now having their own thread that is signalling awake() on task completion; wake() removed from within poll()
+/// - Executor run() method now uses a thread message queue that awaits to receive and process atomic tasks references
 /// - Executor spawn() method now pushes atomic task references onto the message queue for execution
 /// - Waker() now pushes atomic references of awaken tasks down the message queue for execution 
 /// 
@@ -53,7 +52,7 @@ fn test_future_callback() {
     use std::sync::{Arc, Mutex, mpsc::{Receiver,SyncSender}};
     use std::time::*;
     use futures::{future::BoxFuture, task::{ArcWake, waker_ref}};
-    use std::thread::JoinHandle;
+    use std::{thread, thread::JoinHandle};
 
 
     struct Data(Duration, bool, Option<JoinHandle<()>>);
@@ -125,7 +124,10 @@ fn test_future_callback() {
             Executor { queue, sender: Some(sender) }
         }
         fn spawn(&mut self, f: impl Future<Output=()> + Send + 'a) {
-            let t = MyTask(Mutex::new(Box::pin(f)),Some(self.sender.as_ref().unwrap().clone()));
+            let t = MyTask(
+                Mutex::new(Box::pin(f)),
+                Some(self.sender.as_ref().unwrap().clone())
+            );
             self.sender.as_ref().unwrap().send(Arc::new(t)).expect("cannot push in the queue");
         }
         fn drop_spawner(&mut self) {
@@ -133,6 +135,9 @@ fn test_future_callback() {
             drop(s);
         }
         fn run(&mut self) {
+            // release our reference to the sender so channel gets dropped once the last Task completes
+            // hence causing the queue to terminate and exit the while loop
+            self.drop_spawner();
             while let Ok(task) = self.queue.recv() {
                 println!("Exec::Received()");
                 let waker = waker_ref(&task);
@@ -145,7 +150,7 @@ fn test_future_callback() {
 
     let mut exec = Executor::init();
 
-    for i in 1..=5 {
+    for i in 1..2 {
         exec.spawn(async move {
             Timer::start(Duration::from_millis(i*1000)).await
         });
@@ -158,7 +163,6 @@ fn test_future_callback() {
     exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
     exec.spawn( async { println!("Finished: {}", an_async_fn(1).await); } );
 
-    exec.drop_spawner();
     exec.run();
 
 }
@@ -179,11 +183,11 @@ fn test_simple_executor() {
     use std::collections::VecDeque;
     
     // Define a Task that holds a Boxed Future Object on the heap
-    struct MyTask<'a>(Mutex<BoxFuture<'a, ()>>,usize);
+    struct MyTask<'a>(Mutex<BoxFuture<'a, ()>>, usize);
     // Make it a waker
     impl ArcWake for MyTask<'_> {
         fn wake_by_ref(arc_self: &Arc<Self>) { 
-            print!("Waker Location:({:02})->", arc_self.1);
+            print!("Waker TaskID:({:02})->", arc_self.1);
         }
     }
 
@@ -211,10 +215,12 @@ fn test_simple_executor() {
 
     let mut exec = MyExecutor { tasks: VecDeque::new() };
 
-    exec.spawn( async { println!("Finished: {}", my_async_fn(5).await); } );
     exec.spawn( async { println!("Finished: {}", my_async_fn(10).await); } );
-    exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
-    exec.spawn( async { println!("Finished: {}", my_async_fn(1).await); } );
+    exec.spawn( async { 
+        println!("Finished: {}", my_async_fn(5).await);
+        println!("Finished: {}", my_async_fn(3).await); 
+        println!("Finished: {}", my_async_fn(1).await);
+    });
 
     exec.run();
 
@@ -240,7 +246,7 @@ fn test_simple_task_waker() {
     // Make it a waker
     impl ArcWake for MyTask<'_> {
         fn wake_by_ref(arc_self: &Arc<Self>) { 
-            print!("Waker Location:({:?},{:p})->", thread::current().id(), &arc_self);
+            print!("Waker Location:({:p})->", &arc_self.0);
         }
     }
 
@@ -259,12 +265,15 @@ fn test_simple_task_waker() {
     let mut ctx = Context::from_waker(&wk);
 
     let _n = loop {
-        print!("Poll Task:({:?})->", thread::current().id());
+        print!("Poll Task:({:p})->", &t.0);
         // access the task : t.0 (Arc<> dereferences here)
         // Lock access to the task: lock().unwrap() (we infer no poisoning here)
         // get mutable access into the Boxed future
         // call Poll() on the pinned future
-        match t.0.lock().unwrap().as_mut().poll(&mut ctx) {
+        match t.0.lock()
+                .unwrap()
+                .as_mut()
+                .poll(&mut ctx) {
             Poll::Pending => println!("Not ready yet ->"),
             Poll::Ready(n) => {
                 println!("Finished = {n}");
