@@ -104,12 +104,14 @@ fn test_future_callback() {
     // Define a Task that holds a Boxed Future Object on the heap
     struct MyTask<'a>(Mutex<BoxFuture<'a, ()>>, Option<SyncSender<Arc<Self>>>);
     impl<'a> MyTask<'a> {
+        // Poll can be called only when MyTask is wrapped in an Arc<T>
         fn poll(self: &Arc<Self>) {
             let waker = waker_ref(self);
             let ctx = &mut Context::from_waker( &waker );
 
             self.0.lock().unwrap().as_mut().poll(ctx).is_pending();
         }
+        // Schedule can be called only when MyTask is wrapped in an Arc<T>
         fn schedule(self: &Arc<Self>) {
             self.1
                 .as_ref()
