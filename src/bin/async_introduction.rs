@@ -103,15 +103,26 @@ fn test_future_callback() {
 
     // Define a Task that holds a Boxed Future Object on the heap
     struct MyTask<'a>(Mutex<BoxFuture<'a, ()>>, Option<SyncSender<Arc<Self>>>);
+    impl<'a> MyTask<'a> {
+        fn poll(self: &Arc<Self>) {
+            let waker = waker_ref(self);
+            let ctx = &mut Context::from_waker( &waker );
+
+            self.0.lock().unwrap().as_mut().poll(ctx).is_pending();
+        }
+        fn schedule(self: &Arc<Self>) {
+            self.1
+                .as_ref()
+                .map(|s| 
+                    s.send(self.clone()).expect("MyTask::schedule() - Cannot queue task")
+                );
+        }
+    }
     // Make it a waker
     impl ArcWake for MyTask<'_> {
         fn wake_by_ref(arc_self: &Arc<Self>) {
             println!("Wake from {:?}",thread::current().id());
-            arc_self.1
-                .as_ref()
-                .unwrap()
-                .send(arc_self.clone())
-                .expect("Cannot queue task");
+            arc_self.schedule();
         }
     }
     struct Executor<'a> {
@@ -140,10 +151,7 @@ fn test_future_callback() {
             self.drop_spawner();
             while let Ok(task) = self.queue.recv() {
                 println!("Exec::Received()");
-                let waker = waker_ref(&task);
-                let ctx = &mut Context::from_waker( &waker );
-
-                task.0.lock().unwrap().as_mut().poll(ctx).is_pending();
+                task.poll();
             }
         }
     }
