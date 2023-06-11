@@ -1,5 +1,6 @@
 use core::{pin::Pin, task::*, future::*};
 
+
 struct MyFuture(i32);
 impl Future for MyFuture {
     type Output = i32;
@@ -25,7 +26,7 @@ fn my_async_fn(i: i32) -> impl Future<Output=i32> {
    MyFuture(i)
 }
 
-async fn an_async_fn(i: i32) -> i32 {
+async fn an_async_fn(i: u32) -> u32 {
     println!("an_async_fn()");
     i+1
 }
@@ -252,9 +253,9 @@ fn test_simple_task_waker() {
     use std::sync::Mutex;
     
     // Define a Task that holds a Boxed Future Object on the heap
-    struct MyTask<'a>(Mutex<BoxFuture<'a, i32>>);
+    struct MyTask<'a,T>(Mutex<BoxFuture<'a, T>>);
     // Make it a waker
-    impl ArcWake for MyTask<'_> {
+    impl<T> ArcWake for MyTask<'_, T> {
         fn wake_by_ref(arc_self: &Arc<Self>) { 
             print!("Waker Location:({:p})->", &arc_self.0);
         }

@@ -44,3 +44,67 @@ fn main() {
 
     println!("Values={:?}", values);
 }
+
+
+/// Use of LocalPool (M:N) that runs the futures on a green thread 
+/// the last future holds the receiver end of the channel 
+/// we use the LocalPool::run_until(future) to grab the value received form all spawned futures
+#[test]
+fn test_local_pool_async() {
+    use futures::task::SpawnExt;
+
+    let (tx, rx) = futures::channel::mpsc::channel(100);
+    let mut pool = futures::executor::LocalPool::new();
+
+    // Spawn futures against green thread
+    for i in 0..50 {
+        let t = tx.clone();
+        pool.spawner().spawn(async move {
+            print!("s");
+            t.clone().start_send(i).expect("msg");
+        })
+        .expect("msg")
+    }
+
+    // Spawn future that listens the channel end and collects what was sent
+    let hnd = pool.spawner().spawn_with_handle( async {
+        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
+    }).unwrap();
+
+    // drop holding of last sender reference so we channel drops after the last message has been retrieved
+    drop(tx);
+    println!("{:?}", pool.run_until(hnd));
+}
+
+/// Use of TreadPool that runs the futures on their own system thread 
+/// the last future holds the receiver end of the channel 
+/// ThreadPool::spawn_ok() kicks off future polling immediately, hence there is no ThreadPoll::run() method
+/// ThreadPool::spawn_with_handle() help us to wait on the last future / thread to collect the results
+/// Block_on() works agains the RemoteHandle which is like a pointe to future
+#[test]
+fn test_thread_pool_async() {
+    use futures::executor::block_on;
+    use futures::task::SpawnExt;
+
+    let (tx, rx) = futures::channel::mpsc::channel(100);
+    let pool = futures::executor::ThreadPool::new().expect("msg");
+
+    // Spawn futures against their own thread, that poll() immediatelly
+    for i in 0..50 {
+        let t = tx.clone();
+        pool.spawn_ok(async move {
+            print!("s");
+            std::thread::sleep(std::time::Duration::from_micros( 1 + i<<1 % 5));
+            t.clone().start_send(i).expect("msg");
+        })
+    }
+
+    // Spawn future on own thread that listens the channel end and collects what was sent
+    let hnd = pool.spawn_with_handle( async {
+        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
+    }).unwrap();
+
+    // drop holding of last sender reference so we channel drops after the last message has been retrieved
+    drop(tx);
+    println!("{:?}", block_on(hnd));
+}
