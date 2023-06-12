@@ -77,34 +77,78 @@ fn test_local_pool_async() {
 }
 
 /// Use of TreadPool that runs the futures on their own system thread 
-/// the last future holds the receiver end of the channel 
+/// The async block contains the logic for spawning all calculations and collect the results; the process is kicked off with the first poll()
 /// ThreadPool::spawn_ok() kicks off future polling immediately, hence there is no ThreadPoll::run() method
 /// ThreadPool::spawn_with_handle() help us to wait on the last future / thread to collect the results
 /// Block_on() works agains the RemoteHandle which is like a pointe to future
 #[test]
-fn test_thread_pool_async() {
+fn test_thread_pool_async_v1() {
     use futures::executor::block_on;
-    use futures::task::SpawnExt;
 
     let (tx, rx) = futures::channel::mpsc::channel(100);
-    let pool = futures::executor::ThreadPool::new().expect("msg");
+    let pool = futures::executor::ThreadPool::builder()
+        // .after_start(|d| println!("after start {d}"))
+        // .before_stop(|d| println!("before stop {d}"))
+        // .pool_size(10)
+        .create()
+        .expect("msg");
+
+    // Spawn future on current thread that listens the channel end and collects what was sent
+    let hnd = async move {
+
+        // Spawn futures against their own thread; task will poll() immediatelly
+        for i in 0..50 {
+            let t = tx.clone();
+            pool.spawn_ok(async move {
+                print!("s");
+                std::thread::sleep(std::time::Duration::from_micros( 1 + 1 % 5));
+                t.clone().start_send(i).expect("msg");
+            })
+        }
+        drop(tx);
+        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
+    };
+
+    // drop holding of last sender reference so we channel drops after the last message has been retrieved
+    
+    println!("{:?}", block_on(hnd));
+}
+
+/// Use of TreadPool that runs the futures on their own system thread 
+/// The calcualtion are spawned separately with spawn_ok() outside the async block; hence executing before future is polled
+/// ThreadPool::Build() to experiment with pool size; use 1 thread pool to see the interleaving for thread work
+/// ThreadPool::spawn_ok() kicks off future polling immediately, hence there is no ThreadPoll::run() method
+/// ThreadPool::spawn_with_handle() help us to wait on the last future / thread to collect the results
+/// Block_on() works agains the RemoteHandle which is like a pointe to future
+#[test]
+fn test_thread_pool_async_v2() {
+    use futures::executor::block_on;
+
+    let (tx, rx) = futures::channel::mpsc::channel(100);
+    let pool = futures::executor::ThreadPool::builder()
+        // .after_start(|d| println!("after start {d}"))
+        // .before_stop(|d| println!("before stop {d}"))
+        // .pool_size(10)
+        .create()
+        .expect("msg");
 
     // Spawn futures against their own thread, that poll() immediatelly
     for i in 0..50 {
         let t = tx.clone();
         pool.spawn_ok(async move {
             print!("s");
-            std::thread::sleep(std::time::Duration::from_micros( 1 + i<<1 % 5));
+            std::thread::sleep(std::time::Duration::from_micros( 1 + 1 % 5));
             t.clone().start_send(i).expect("msg");
         })
     }
+    drop(tx);
 
-    // Spawn future on own thread that listens the channel end and collects what was sent
-    let hnd = pool.spawn_with_handle( async {
+    // Spawn future on current thread that listens the channel end and collects what was sent
+    let hnd = async move {
         rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
-    }).unwrap();
+    };
 
     // drop holding of last sender reference so we channel drops after the last message has been retrieved
-    drop(tx);
+    
     println!("{:?}", block_on(hnd));
 }

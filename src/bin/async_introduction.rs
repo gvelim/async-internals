@@ -1,5 +1,4 @@
-use core::{pin::Pin, task::*, future::*};
-
+use core::{pin::*, task::*, future::*};
 
 struct MyFuture(i32);
 impl Future for MyFuture {
@@ -305,7 +304,8 @@ fn test_simple_task_waker() {
 fn test_manually_poll_future() {
     use std::sync::Arc;
     use std::task::Wake;
-    
+    // use futures::task::noop_waker;
+
     // Define a dummy Waker struct for now without an associated feature/task
     struct MyWake;
     // Make it a Waker
@@ -319,18 +319,20 @@ fn test_manually_poll_future() {
     }
 
     // Capture Future from stack and Construct a Task that moves the future on the heap
-    let mut f = my_async_fn(5);
+    let f = async { my_async_fn(5).await };
 
     // Construct a dummy Waker & Context
     let wk = Waker::from(Arc::new(MyWake));
+    // let wk = noop_waker();
     let mut ctx = Context::from_waker(&wk);
 
+    let mut f = pin!(f);
     let _n = loop {
-        print!("Manually Poll->");
-        match Pin::new(&mut f).poll(&mut ctx) {
-            Poll::Pending => println!("Not ready yet ->"),
+        print!("Exec::Poll->");
+        match f.as_mut().poll(&mut ctx) {
+            Poll::Pending => println!("Exec::Pending ->"),
             Poll::Ready(n) => {
-                println!("Finished = {n}");
+                println!("Exec::Ready = {n}");
                 break n;
             }
         }
