@@ -170,8 +170,10 @@ fn test_future_callback() {
         println!("Finished: {}", my_async_fn(5).await);
         println!("Finished: {}", my_async_fn(10).await);
     });
-    exec.spawn( async { println!("Finished: {}", my_async_fn(3).await); } );
-    exec.spawn( async { println!("Finished: {}", an_async_fn(1).await); } );
+    exec.spawn( async { 
+        println!("Finished: {}", my_async_fn(3).await);
+        println!("Finished: {}", an_async_fn(1).await);
+    });
 
     exec.run();
 
@@ -186,10 +188,10 @@ fn test_future_callback() {
 /// The futures used do not put the executor into sleep since they call wake() within poll()
 #[test]
 fn test_simple_executor() {
-    use std::sync::Arc;
+    use std::sync::{Arc,Mutex};
+    // use std::task::*;
     use futures::future::BoxFuture;
     use futures::task::{ArcWake, waker_ref};
-    use std::sync::Mutex;
     use std::collections::VecDeque;
     
     // Define a Task that holds a Boxed Future Object on the heap
@@ -218,17 +220,20 @@ fn test_simple_executor() {
                 if task.0.lock().unwrap().as_mut().poll(&mut ctx).is_pending() {
                     self.tasks.push_back(task)
                 }
-                
             }
         }
     }
 
     let mut exec = MyExecutor { tasks: VecDeque::new() };
 
-    exec.spawn( async { println!("Finished: {}", my_async_fn(10).await); } );
+    exec.spawn( async { 
+        println!("Finished: {}", my_async_fn(10).await); 
+    });
     exec.spawn( async { 
         println!("Finished: {}", my_async_fn(5).await);
         println!("Finished: {}", my_async_fn(3).await); 
+    });
+    exec.spawn( async { 
         println!("Finished: {}", my_async_fn(1).await);
     });
 
@@ -246,31 +251,34 @@ fn test_simple_executor() {
 ///
 #[test]
 fn test_simple_task_waker() {
-    use std::sync::Arc;
-    use futures::future::BoxFuture;
-    use futures::task::{ArcWake, waker_ref};
-    use std::sync::Mutex;
+    use std::sync::{Arc,Mutex};
+    use futures::FutureExt;
+    use std::task::Wake;
     
     // Define a Task that holds a Boxed Future Object on the heap
-    struct MyTask<'a,T>(Mutex<BoxFuture<'a, T>>);
-    // Make it a waker
-    impl<T> ArcWake for MyTask<'_, T> {
-        fn wake_by_ref(arc_self: &Arc<Self>) { 
-            print!("Waker Location:({:p})->", &arc_self.0);
+    // Wrap Box in Mutex<T> since we need to mutate against a immutable Task reference, hence Arc<Mutex<T>>
+    // Future<T> + Send is needed for the Arc<T>
+    // Future<T> + Unpin is needed for the poll_unpin()
+    struct MyTask<T>(Mutex<Box<dyn Future<Output=T> + Unpin + Send>>);
+    // Make MyTask a Waker (trait object)
+    // ArcWake<T> must have T + Send + Sync; Send from Mutex<T>, Sync from Arc<T>
+    impl<T> Wake for MyTask<T> {
+        fn wake(self: Arc<Self>) {
+            print!("Waker Location:({:p})->", &self.0);
         }
     }
 
     // Capture Future from stack and
     let f = my_async_fn(5);
     // Construct a Task that moves the future on the heap and pins it
-    // We wrap the future in Mutex to ensure Task = Sent + Sync
+    // We wrap the future in Mutex to ensure Task = Sync
     // We place the task in a Atomic Reference Counting pointer
     // as the Waker will be constructed from Arc<impl ArcWake> == Arc<MyTask>
-    let t = Arc::new(MyTask( Mutex::new(Box::pin(f))));
+    let t = Arc::new(MyTask( Mutex::new(Box::new(f))));
 
     // Extract Waker from Task's ArcWake trait implementation
-    // Creates a reference to a Waker from a reference to Arc<impl ArcWake>, which is why we have to wrap our task in Arc<T>.
-    let wk = waker_ref(&t);
+    // Creates a reference to a Waker from a reference to Arc<impl Wake>, which is why we have to wrap our task in Arc<T>.
+    let wk = t.clone().into();
     // Construct the Task's Context
     let mut ctx = Context::from_waker(&wk);
 
@@ -280,10 +288,10 @@ fn test_simple_task_waker() {
         // Lock access to the task: lock().unwrap() (we infer no poisoning here)
         // get mutable access into the Boxed future
         // call Poll() on the pinned future
-        match t.0.lock()
-                .unwrap()
+        match t.0
+                .lock().unwrap()
                 .as_mut()
-                .poll(&mut ctx) {
+                .poll_unpin(&mut ctx) {
             Poll::Pending => println!("Not ready yet ->"),
             Poll::Ready(n) => {
                 println!("Finished = {n}");
