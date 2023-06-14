@@ -319,10 +319,7 @@ fn test_manually_poll_future() {
     // Make it a Waker
     impl Wake for MyWake {
         fn wake(self: Arc<Self>) {
-            println!("Wake()");
-        }
-        fn wake_by_ref(self: &Arc<Self>) {
-            print!("Wake_by_ref() - Poll me!");
+            println!("Wake() - Poll again!");
         }
     }
 
@@ -330,7 +327,8 @@ fn test_manually_poll_future() {
     let f = async { my_async_fn(5).await };
 
     // Construct a dummy Waker & Context
-    let wk = Waker::from(Arc::new(MyWake));
+    // Waker implements From trait on Arc<Wake>
+    let wk = Arc::new(MyWake).into();
     // let wk = noop_waker();
     let mut ctx = Context::from_waker(&wk);
 

@@ -1,6 +1,6 @@
 use futures::channel::mpsc;
 use futures::executor; //standard executors to provide a context for futures and streams
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::StreamExt;
 
 fn main() {
@@ -56,6 +56,11 @@ fn test_local_pool_async() {
     let (tx, rx) = futures::channel::mpsc::channel(100);
     let mut pool = futures::executor::LocalPool::new();
 
+    // Spawn future that listens the channel end and collects what was sent
+    let hnd = pool.spawner().spawn_with_handle( async {
+        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
+    }).unwrap();
+
     // Spawn futures against green thread
     for i in 0..50 {
         let t = tx.clone();
@@ -65,12 +70,6 @@ fn test_local_pool_async() {
         })
         .expect("msg")
     }
-
-    // Spawn future that listens the channel end and collects what was sent
-    let hnd = pool.spawner().spawn_with_handle( async {
-        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
-    }).unwrap();
-
     // drop holding of last sender reference so we channel drops after the last message has been retrieved
     drop(tx);
     println!("{:?}", pool.run_until(hnd));
