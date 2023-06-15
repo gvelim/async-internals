@@ -55,12 +55,12 @@ fn test_future_callback() {
     use std::{thread, thread::JoinHandle};
 
 
-    struct Data(Duration, bool, Option<JoinHandle<()>>);
+    type Data = (Duration, bool, Option<JoinHandle<()>>);
     struct Timer(Arc<Mutex<Data>>);
     impl Timer {
         fn start(timeout: Duration) -> impl Future<Output = ()> {
             println!("Timer::start()");
-            Timer(Arc::new(Mutex::new(Data(timeout,false, None))))
+            Timer(Arc::new(Mutex::new((timeout,false, None))))
         }
     }
     impl Future for Timer {

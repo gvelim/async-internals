@@ -2,6 +2,7 @@ use futures::channel::mpsc;
 use futures::executor; //standard executors to provide a context for futures and streams
 use futures::executor::{block_on, ThreadPool};
 use futures::StreamExt;
+use futures::task::LocalSpawn;
 
 fn main() {
     let pool = ThreadPool::new().expect("cannot create pool");
@@ -46,32 +47,34 @@ fn main() {
 }
 
 
-/// Use of LocalPool (M:N) that runs the futures on a green thread 
+/// Use of LocalPool (M:N) that runs futures on a single thread 
 /// the last future holds the receiver end of the channel 
 /// we use the LocalPool::run_until(future) to grab the value received form all spawned futures
+/// Block_on() won't work here as it calls Thread::park() and resumes thread for poll() once it is awaken; hence execution will stop
 #[test]
 fn test_local_pool_async() {
     use futures::task::SpawnExt;
 
     let (tx, rx) = futures::channel::mpsc::channel(100);
     let mut pool = futures::executor::LocalPool::new();
-
-    // Spawn future that listens the channel end and collects what was sent
-    let hnd = pool.spawner().spawn_with_handle( async {
-        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
-    }).unwrap();
-
+    
     // Spawn futures against green thread
     for i in 0..50 {
-        let t = tx.clone();
+        let mut t = tx.clone();
         pool.spawner().spawn(async move {
             print!("s");
-            t.clone().start_send(i).expect("msg");
+            t.start_send(i).expect("msg");
         })
         .expect("msg")
     }
-    // drop holding of last sender reference so we channel drops after the last message has been retrieved
-    drop(tx);
+
+    let hnd = pool.spawner().spawn_with_handle( async {
+    // Spawn future that listens the channel end and collects what was sent
+        // drop holding of last sender reference so we channel drops after the last message has been retrieved
+        drop(tx);
+        rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
+    }).unwrap();
+    
     println!("{:?}", pool.run_until(hnd));
 }
 
@@ -79,7 +82,7 @@ fn test_local_pool_async() {
 /// The async block contains the logic for spawning all calculations and collect the results; the process is kicked off with the first poll()
 /// ThreadPool::spawn_ok() kicks off future polling immediately, hence there is no ThreadPoll::run() method
 /// ThreadPool::spawn_with_handle() help us to wait on the last future / thread to collect the results
-/// Block_on() works agains the RemoteHandle which is like a pointe to future
+/// Block_on() works agains the RemoteHandle which is like a pointer to future. Also, since block_on() parks own thread awaiting to be awaked our futures continue processing since they've be spawned() up with their own thread
 #[test]
 fn test_thread_pool_async_v1() {
     use futures::executor::block_on;
