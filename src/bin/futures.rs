@@ -53,18 +53,22 @@ fn main() {
 #[test]
 fn test_local_pool_async() {
     use futures::task::SpawnExt;
+    use futures::executor::LocalPool;
+    use futures::task::{LocalSpawnExt};
 
-    let (tx, rx) = futures::channel::mpsc::channel(100);
-    let mut pool = futures::executor::LocalPool::new();
+    let (tx, rx) = mpsc::channel(100);
+    let mut pool = LocalPool::new();
     
     // Spawn futures against green thread
     for i in 0..50 {
         let mut t = tx.clone();
-        pool.spawner().spawn(async move {
-            print!("s");
-            t.start_send(i).expect("msg");
-        })
-        .expect("msg")
+        pool.spawner()
+            .spawn_local(async move {
+                print!("s");
+                t.start_send(i).expect("msg");
+                drop(t);
+            })
+            .expect("msg");
     }
 
     let hnd = pool.spawner().spawn_with_handle( async {
