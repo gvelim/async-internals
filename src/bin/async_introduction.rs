@@ -11,7 +11,7 @@ impl Future for MyFuture {
         } else {
             // do some work
             self.0 -= 1;
-            println!("MyFuture::Poll() - Checking({}) ",self.0);
+            println!("MyFuture::Poll() - Checking({:?}) ",self.0);
             // A Waker is a handle for waking up a task by notifying its executor that it is ready to be run.
             // call byref as otherwise we'll consume the Waker
             cx.waker().wake_by_ref();
