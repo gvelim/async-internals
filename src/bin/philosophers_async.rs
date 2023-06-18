@@ -35,7 +35,7 @@ impl Philosopher {
 static PHILOSOPHERS: &[&str] =
     &["Socrates", "Plato", "Aristotle", "Thales", "Pythagoras"];
 
-#[tokio::main]
+#[tokio::main(flavor="current_thread")]
 async fn main() {    
     // Create forks
     let forks = PHILOSOPHERS.iter()
@@ -43,7 +43,7 @@ async fn main() {
         .collect::<Vec<_>>();
         
     let f = async {
-        let (tx,mut rx) = mpsc::channel::<String>(100);
+        let (tx,mut rx) = mpsc::channel::<String>(10 );
  
         PHILOSOPHERS.iter().enumerate()
             // Create philosophers
@@ -56,14 +56,13 @@ async fn main() {
                 }
             })
             // Make them think and eat
-            .all(|ph| {
+            .for_each(|philosopher| {
                 tokio::task::spawn_local(async move {
                     for _ in 0..10 {
-                        ph.eat().await;
-                        ph.think().await;
+                        philosopher.eat().await;
+                        philosopher.think().await;
                     }
                 });
-                true  
             });
         
         drop(tx);
@@ -78,7 +77,7 @@ async fn main() {
 
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_thread_pool() {    
     
     // Create forks
@@ -97,14 +96,14 @@ async fn test_thread_pool() {
                 thoughts: tx.clone()
             }
         })
-        // Make them think and eat
-        .all(|ph| {
-            !tokio::spawn(async move {
+         // Make them think and eat
+        .for_each(|philosopher| {
+            tokio::spawn(async move {
                 for _ in 0..10 {
-                    ph.eat().await;
-                    ph.think().await;
+                    philosopher.eat().await;
+                    philosopher.think().await;
                 }
-            }).is_finished()
+            });
         });
     
     drop(tx);
