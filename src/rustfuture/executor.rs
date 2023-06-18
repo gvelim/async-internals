@@ -38,7 +38,7 @@ impl Executor {
             if let Some(mut future) = future_slot.take() {
 
                 let waker = waker_ref(&task);
-                let context = &mut Context::from_waker(&*waker);
+                let context = &mut Context::from_waker(&waker);
 
                 if future.as_mut().poll(context).is_pending() {
                     *future_slot = Some(future);

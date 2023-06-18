@@ -106,7 +106,7 @@ fn test_thread_pool_async_v1() {
             let t = tx.clone();
             pool.spawn_ok(async move {
                 print!("s");
-                std::thread::sleep(std::time::Duration::from_micros( 1 + 1 % 5));
+                std::thread::sleep(std::time::Duration::from_micros( 1 % 5));
                 t.clone().start_send(i).expect("msg");
             })
         }
@@ -142,7 +142,7 @@ fn test_thread_pool_async_v2() {
         let t = tx.clone();
         pool.spawn_ok(async move {
             print!("s");
-            std::thread::sleep(std::time::Duration::from_micros( 1 + 1 % 5));
+            std::thread::sleep(std::time::Duration::from_micros( 1 % 5));
             t.clone().start_send(i).expect("msg");
         })
     }
