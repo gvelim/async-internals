@@ -7,7 +7,7 @@ impl Future for MyFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.0 == 0 {
             println!("Poll::Done {}",self.0);
-            return Poll::Ready(self.0)
+            Poll::Ready(self.0)
         } else {
             // do some work
             self.0 -= 1;
@@ -75,7 +75,7 @@ fn test_future_callback() {
                 if state.2.is_none() {
                     println!("Timer::Launch Thread");
                     let waker = cx.waker().clone();        // clone ArcWaker reference
-                    let timeout = state.0.clone();       // copy timeout value
+                    let timeout = state.0;       // copy timeout value
                     let ts = self.0.clone();     // clone Arc<T>
                     state.2 = Some(
                         thread::spawn( move || {
