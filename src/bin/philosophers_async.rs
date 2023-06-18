@@ -79,7 +79,7 @@ async fn main() {
 }
 
 #[tokio::test]
-async fn test_own_thread() {    
+async fn test_thread_pool() {    
     
     // Create forks
     let forks = PHILOSOPHERS.iter()
