@@ -25,7 +25,7 @@ impl Philosopher {
         let _lf = self.left_fork.lock().await;
         let _rf = self.right_fork.lock().await;
         println!("{} is eating...", &self.name);
-        time::sleep(time::Duration::from_millis(5)).await;
+        time::sleep(time::Duration::from_millis(50)).await;
     }
 }
 
@@ -37,31 +37,34 @@ async fn main() {
     let (tx,mut rx) = mpsc::channel::<String>(100);
     
     // Create forks
-    let mut forks = vec![];
-    for _ in PHILOSOPHERS {
-        forks.push(Arc::new(Mutex::new(Fork)))
-    }
-    for (i,philosopher) in PHILOSOPHERS.iter().enumerate() {
-        let ph = Philosopher {
-            name: philosopher.to_string(),
-            left_fork: if i == 0 { forks.last().unwrap().clone() } else { forks[i].clone() },
-            right_fork: forks[i+1].clone(),
-            thoughts: tx.clone()
-        };
-
-        // Make them think and eat
-        let hnd = tokio::task::spawn(async move {
-            loop {
-                ph.eat().await;
-                ph.think().await;
-            }
+    let forks = PHILOSOPHERS.iter()
+        .fold(vec![], |mut forks, _| {
+            forks.push(Arc::new(Mutex::new(Fork)));
+            forks
         });
-    }
-
-    async move {
+        
+    PHILOSOPHERS.iter().enumerate()
         // Create philosophers
-        drop(tx);
-
+        .map(|(i,philosopher)| {
+            Philosopher {
+                name: philosopher.to_string(),
+                left_fork: forks[i].clone(),
+                right_fork: forks[ if i == forks.len()-1 { 0 } else { i+1 } ].clone(),
+                thoughts: tx.clone()
+            }
+        })
+        // Make them think and eat
+        .all(|ph| {
+            !spawn(async move {
+                for _ in 0..10 {
+                    ph.eat().await;
+                    ph.think().await;
+                }
+            }).is_finished()  
+        });
+    
+    drop(tx);
+    async move {
         // Output their thoughts
         while let Some(thought) = rx.recv().await {
             println!("{}",thought);
