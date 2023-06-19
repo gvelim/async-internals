@@ -1,39 +1,47 @@
 use std::{
-    thread,
-    sync::Arc,
+    sync::{Arc,Mutex, mpsc::*},
     future::Future,
-    time::Duration,
-    collections::vec_deque::VecDeque,
 };
 
-use crate::myfuture::mytask::MyTask;
+use super::mytask::MyTask;
 
-pub struct MyExecutor {
-    queue: VecDeque<MyTask>,
+pub struct MyExecutor<'a> {
+    queue: Receiver<Arc<MyTask<'a>>>,
+    sender: Option<SyncSender<Arc<MyTask<'a>>>>,
 }
+impl<'a> MyExecutor<'a> {
+    pub fn init() -> MyExecutor<'a> {
+        let (sender, queue) = std::sync::mpsc::sync_channel(1000);
+        MyExecutor {
+            queue,
+            sender: Some(sender),
+        }
+    }
 
-impl Default for MyExecutor {
-    fn default() -> Self {
-        Self::new()
+    pub fn spawn(&mut self, f: impl Future<Output = ()> + Send + 'a) {
+        let t = MyTask(
+            Mutex::new(Box::pin(f)),
+            Some(self.sender.as_ref().unwrap().clone()),
+        );
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(Arc::new(t))
+            .expect("cannot push in the queue");
     }
-}
 
-impl MyExecutor {
-    pub fn new() -> MyExecutor {
-        MyExecutor { queue: VecDeque::new() }
+    pub fn drop_spawner(&mut self) {
+        let s = self.sender.take();
+        drop(s);
     }
-    pub fn spawn(&mut self, fut: impl Future<Output=()> + Send + 'static) {
-        self.queue.push_back(MyTask::new(fut));
-    }
+
     pub fn run(&mut self) {
-        while let Some(task) = self.queue.pop_front().take() {
-            if task.poll().is_pending() {
-                self.queue.push_back(task);
-                thread::sleep(Duration::from_millis(10));
-                print!(".");
-            } else {
-                println!("Task completed in {:.2?}; waker() RefCount: {}", task.lapsed.elapsed(), Arc::strong_count(&task.waker));
-            }
+        // release our reference to the sender so channel gets dropped once the last Task completes
+        // hence causing the queue to terminate and exit the while loop
+        self.drop_spawner();
+        while let Ok(task) = self.queue.recv() {
+            println!("Exec::Received()");
+            task.poll();
         }
     }
 }

@@ -1,5 +1,5 @@
 use rand::prelude::*;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use futures::executor;
 use futures::executor::{block_on};
 use futures::future::join_all;
@@ -9,20 +9,20 @@ use async_test::myfuture::{
     myexecutor::MyExecutor
 };
 
-async fn wait_timer(lapse: u64) -> String {
-    MyTimer::new(lapse).await
+async fn wait_timer(lapse: u64) -> Duration {
+    MyTimer::start(Duration::from_millis(lapse)).await
 }
 
 fn run_myexec() {
 
-    let mut exec = MyExecutor::new();
+    let mut exec = MyExecutor::init();
 
     let now = Instant::now();
 
     for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         exec.spawn(async move {
-            println!("F{}: {}", i, wait_timer(d).await );
+            println!("F{}: {:?}", i, wait_timer(d).await );
         });
     }
 
@@ -37,7 +37,7 @@ fn run_localexec() {
         let d: u64 = thread_rng().gen_range(1..=10);
         pool.spawner()
             .spawn(async move {
-                println!("F{}:{}", i, MyTimer::new(d).await);
+                println!("F{}:{:?}", i, MyTimer::start(Duration::from_millis(d)).await);
             }).unwrap();
     }
     pool.run();
@@ -47,11 +47,11 @@ fn run_threadpool_exec() {
     // let pool = executor::ThreadPool::new().expect("Error: cannot initiate pool");
     let mut hnd = Vec::new();
 
-    for i in 1..=20 {
+    for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         hnd.push( async move {
-            let output = MyTimer::new(d).await;
-            println!("F{}:{}", i, output);
+            let output = MyTimer::start(Duration::from_millis(d)).await;
+            println!("F{}:{:?}", i, output);
             output
         });
     }
@@ -61,10 +61,10 @@ fn run_threadpool_exec() {
 }
 
 fn main() {
-    println!("MyExecutor:");
+    println!("MyExecutor: ------------------------");
     run_myexec();
-    println!("LocalThread:");
+    println!("LocalThread: ------------------------");
     run_localexec();
-    println!("ThreadPool:");
+    println!("ThreadPool: ------------------------");
     run_threadpool_exec();
 }

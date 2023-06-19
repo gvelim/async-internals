@@ -1,36 +1,41 @@
-use std::{
-    sync::{Arc, Mutex},
-    pin::Pin,
-    task::{Context, Poll},
-    future::Future,
-};
 use futures::{
-    task
+    future::BoxFuture,
+    task::{waker_ref, ArcWake, Context},
 };
+use std::sync::{
+    mpsc::SyncSender,
+    Arc, Mutex,
+};
+use std::thread;
 
-use crate::myfuture::mywaker::MyWaker;
+// Define a Task that holds a Boxed Future Object on the heap
+pub struct MyTask<'a> (
+    pub Mutex<BoxFuture<'a, ()>>, 
+    pub Option<SyncSender<Arc<Self>>>
+);
 
-pub struct MyTask {
-    // has to be wrapped in Mutex so MyTask inherits the Send trait
-    fut : Mutex<Pin<Box<dyn Future<Output=()> + Send>>>,
-    pub(crate) waker: Arc<MyWaker>,
-    pub(crate) lapsed: std::time::Instant
+impl<'a> MyTask<'a> {
+    // Poll can be called only when MyTask is wrapped in an Arc<T>
+    pub fn poll(self: &Arc<Self>) {
+        let waker = waker_ref(self);
+        let ctx = &mut Context::from_waker(&waker);
+
+        self.0.lock().unwrap().as_mut().poll(ctx).is_pending();
+    }
+    // Schedule can be called only when MyTask is wrapped in an Arc<T>
+    pub fn schedule(self: &Arc<Self>) {
+        self.1.as_ref().map(|s| {
+            s.send(self.clone())
+                .expect("MyTask::schedule() - Cannot queue task")
+        });
+    }
 }
 
-impl MyTask {
-    pub fn new(fut: impl Future<Output=()> + Send + 'static) -> MyTask {
-        MyTask {
-            fut: Mutex::new(Box::pin(fut)),
-            waker: Arc::new(MyWaker),
-            lapsed: std::time::Instant::now()
-        }
-    }
-    pub fn poll(&self) -> Poll<()> {
-
-        let waker = task::waker(self.waker.clone());
-        let mut cx = Context::from_waker( &waker);
-
-        let mut f = self.fut.lock().unwrap();
-        f.as_mut().poll(&mut cx)
+// Make it a waker
+impl ArcWake for MyTask<'_> {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        println!("Wake from {:?}", thread::current().id());
+        arc_self.schedule();
     }
 }
+    
