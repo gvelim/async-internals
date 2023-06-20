@@ -23,9 +23,9 @@ impl Philosopher {
     async fn eat(&self) {
         // Pick up forks...
         let _lf = self.left_fork.lock().await;
-        print!("{} picked left fork...",self.name);
+        // print!("{} picked left fork...",self.name);
         let _rf = self.right_fork.lock().await;
-        print!("{} picked right fork...",self.name);
+        // print!("{} picked right fork...",self.name);
         println!("{} is eating... {:?}", &self.name, std::thread::current().id() );
         let delay = thread_rng().gen_range(20..100);
         time::sleep( time::Duration::from_millis(delay) ).await;
@@ -33,18 +33,20 @@ impl Philosopher {
 }
 
 static PHILOSOPHERS: &[&str] =
-    &["Socrates", "Plato", "Aristotle", "Thales", "Pythagoras"];
+    &["Socrates", "Plato", "Aristotle", "Thales", "Pythagoras", "George V", "Satre"];
 
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {    
     // Create forks
     let forks = PHILOSOPHERS.iter()
         .map(|_| Arc::new(Mutex::new(Fork)))
         .collect::<Vec<_>>();
         
-    let f = async {
-        let (tx,mut rx) = mpsc::channel::<String>(10 );
- 
+    let (tx,mut rx) = mpsc::channel::<String>(3);
+
+    // force tasks to run against the local thread
+    let ls = tokio::task::LocalSet::new();
+    ls.run_until( async {
         PHILOSOPHERS.iter().enumerate()
             // Create philosophers
             .map(|(i,philosopher)| {
@@ -70,11 +72,7 @@ async fn main() {
         while let Some(thought) = rx.recv().await {
             println!("{}",thought);
         }
-    };
-
-    let ls = tokio::task::LocalSet::new();
-    ls.run_until(f).await;
-
+    }).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -85,7 +83,7 @@ async fn test_thread_pool() {
         .map(|_| Arc::new(Mutex::new(Fork)))
         .collect::<Vec<_>>();
     
-    let (tx,mut rx) = mpsc::channel::<String>(100);
+    let (tx,mut rx) = mpsc::channel::<String>(3);
     PHILOSOPHERS.iter().enumerate()
         // Create philosophers
         .map(|(i,philosopher)| {

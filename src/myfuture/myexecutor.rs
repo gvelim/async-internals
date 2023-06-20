@@ -9,6 +9,7 @@ pub struct MyExecutor<'a> {
     queue: Receiver<Arc<MyTask<'a>>>,
     sender: Option<SyncSender<Arc<MyTask<'a>>>>,
 }
+
 impl<'a> MyExecutor<'a> {
     pub fn init() -> MyExecutor<'a> {
         let (sender, queue) = std::sync::mpsc::sync_channel(1000);
@@ -40,7 +41,7 @@ impl<'a> MyExecutor<'a> {
         // hence causing the queue to terminate and exit the while loop
         self.drop_spawner();
         while let Ok(task) = self.queue.recv() {
-            println!("Exec::Received()");
+            // println!("Exec::Received()");
             task.poll();
         }
     }
