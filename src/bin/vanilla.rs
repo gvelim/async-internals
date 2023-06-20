@@ -17,8 +17,6 @@ fn run_myexec() {
 
     let mut exec = MyExecutor::init();
 
-    let now = Instant::now();
-
     for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         let f = async move {
@@ -27,13 +25,13 @@ fn run_myexec() {
         exec.spawn(f);
     }
 
+    let now = Instant::now();
     exec.run();
     println!("Total time: {:.2?}", now.elapsed() )
 }
 
 fn run_localexec() {
     let mut pool = executor::LocalPool::new();
-    let now = Instant::now();
     for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         pool.spawner()
@@ -41,6 +39,7 @@ fn run_localexec() {
                 println!("F{}:{:?}", i, wait_timer(d).await);
             }).unwrap();
     }
+    let now = Instant::now();
     pool.run();
     println!("Total time: {:.2?}", now.elapsed() )
 }
@@ -48,8 +47,7 @@ fn run_localexec() {
 fn run_threadpool_exec() {
     // let pool = executor::ThreadPool::new().expect("Error: cannot initiate pool");
     let mut hnd = Vec::new();
-    let now = Instant::now();
-     
+
     for i in 1..=10 {
         let d: u64 = thread_rng().gen_range(1..=10);
         hnd.push( async move {
@@ -59,6 +57,7 @@ fn run_threadpool_exec() {
         });
     }
 
+    let now = Instant::now();
     let output = block_on(join_all(hnd) );
     println!("{:?}", output);
     println!("Total time: {:.2?}", now.elapsed() )
