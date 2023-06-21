@@ -43,7 +43,7 @@ async fn main() {
         .collect::<Vec<_>>();
         
     let (tx,mut rx) = mpsc::channel::<String>(3);
-
+    
     // force tasks to run against the local thread
     let ls = tokio::task::LocalSet::new();
     ls.run_until( async {

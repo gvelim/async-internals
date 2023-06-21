@@ -24,10 +24,13 @@ impl<'a> MyTask<'a> {
     }
     // Schedule can be called only when MyTask is wrapped in an Arc<T>
     pub fn schedule(self: &Arc<Self>) {
-        self.1.as_ref().map(|s| {
-            s.send(self.clone())
-                .expect("MyTask::schedule() - Cannot queue task")
-        });
+        self.1
+            .as_ref()
+            .map(|s| {
+                s.send(self.clone())
+                    .expect("MyTask::schedule() - Cannot queue task")
+            })
+            .expect("Task::schedule() - Error scheduling task");
     }
 }
 

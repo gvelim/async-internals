@@ -39,10 +39,9 @@ impl Future for MyTimer {
                     // println!("Timer::Thread Lapsed");
 
                     ts.lock()
-                        .and_then(|mut state| {
+                        .map(|mut state| {
                             // println!("Timer::Locked & mutate");
                             state.1 = true;
-                            Ok(())
                         })
                         .expect("Mutex poisoned");
 

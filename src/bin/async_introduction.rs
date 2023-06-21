@@ -7,7 +7,7 @@ impl Future for MyFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.0 == 0 {
             println!("Poll::Done {}", self.0);
-            return Poll::Ready(self.0);
+            Poll::Ready(self.0)
         } else {
             // do some work
             self.0 -= 1;
@@ -78,17 +78,16 @@ fn test_future_callback() {
                 if state.2.is_none() {
                     println!("Timer::Launch Thread");
                     let waker = cx.waker().clone(); // clone ArcWaker reference
-                    let timeout = state.0.clone(); // copy timeout value
+                    let timeout = state.0; // copy timeout value
                     let ts = self.0.clone(); // clone Arc<T>
                     state.2 = Some(thread::spawn(move || {
                         thread::park_timeout(timeout);
                         println!("Timer::Thread Lapsed");
 
                         ts.lock()
-                            .and_then(|mut state| {
+                            .map(|mut state| {
                                 println!("Timer::Locked & mutate");
                                 state.1 = true;
-                                Ok(())
                             })
                             .expect("Mutex poisoned");
 
@@ -114,10 +113,13 @@ fn test_future_callback() {
         }
         // Schedule can be called only when MyTask is wrapped in an Arc<T>
         fn schedule(self: &Arc<Self>) {
-            self.1.as_ref().map(|s| {
-                s.send(self.clone())
-                    .expect("MyTask::schedule() - Cannot queue task")
-            });
+            self.1
+                .as_ref()
+                .map(|s| {
+                    s.send(self.clone())
+                        .expect("MyTask::schedule() - Cannot queue task")
+                })
+                .expect("Task::schedule() - Error scheduling");
         }
     }
     // Make it a waker
@@ -391,8 +393,7 @@ fn test_block_on_future_with_async() {
         my_async_fn(5).await;
         an_async_fn(5).await;
     };
-    let out = block_on(root);
-    println!("Async completed! {:?}", out);
+    println!("Async completed! {:?}", block_on(root) );
 }
 
 /// Demonstrate how we can get our Future Object executed by block_on()

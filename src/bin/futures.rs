@@ -90,8 +90,8 @@ fn test_local_pool_async() {
 fn test_thread_pool_async_v1() {
     use futures::executor::block_on;
 
-    let (tx, rx) = futures::channel::mpsc::channel(100);
-    let pool = futures::executor::ThreadPool::builder()
+    let (tx, rx) = mpsc::channel(100);
+    let pool = ThreadPool::builder()
         // .after_start(|d| println!("after start {d}"))
         // .before_stop(|d| println!("before stop {d}"))
         // .pool_size(10)
@@ -106,7 +106,7 @@ fn test_thread_pool_async_v1() {
             let t = tx.clone();
             pool.spawn_ok(async move {
                 print!("s");
-                std::thread::sleep(std::time::Duration::from_micros( 1 % 5));
+                std::thread::sleep(std::time::Duration::from_micros( i % 5));
                 t.clone().start_send(i).expect("msg");
             })
         }
@@ -129,8 +129,8 @@ fn test_thread_pool_async_v1() {
 fn test_thread_pool_async_v2() {
     use futures::executor::block_on;
 
-    let (tx, rx) = futures::channel::mpsc::channel(100);
-    let pool = futures::executor::ThreadPool::builder()
+    let (tx, rx) = mpsc::channel(100);
+    let pool = ThreadPool::builder()
         // .after_start(|d| println!("after start {d}"))
         // .before_stop(|d| println!("before stop {d}"))
         // .pool_size(10)
@@ -142,7 +142,7 @@ fn test_thread_pool_async_v2() {
         let t = tx.clone();
         pool.spawn_ok(async move {
             print!("s");
-            std::thread::sleep(std::time::Duration::from_micros( 1 % 5));
+            std::thread::sleep(std::time::Duration::from_micros( i % 5));
             t.clone().start_send(i).expect("msg");
         })
     }
