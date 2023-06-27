@@ -27,8 +27,8 @@ impl Philosopher {
         let _rf = self.right_fork.lock().await;
         // print!("{} picked right fork...",self.name);
         println!("{} is eating... {:?}", &self.name, std::thread::current().id() );
-        let delay = thread_rng().gen_range(20..100);
-        time::sleep( time::Duration::from_millis(delay) ).await;
+        let delay = thread_rng().gen_range(1..10);
+        time::sleep( time::Duration::from_millis(delay*100) ).await;
     }
 }
 
@@ -37,16 +37,15 @@ static PHILOSOPHERS: &[&str] =
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {    
-    // Create forks
-    let forks = PHILOSOPHERS.iter()
+    
+    async fn app() {
+        // Create forks
+        let forks = PHILOSOPHERS.iter()
         .map(|_| Arc::new(Mutex::new(Fork)))
         .collect::<Vec<_>>();
         
-    let (tx,mut rx) = mpsc::channel::<String>(3);
-    
-    // force tasks to run against the local thread
-    let ls = tokio::task::LocalSet::new();
-    ls.run_until( async {
+        let (tx,mut rx) = mpsc::channel::<String>(3);
+
         PHILOSOPHERS.iter().enumerate()
             // Create philosophers
             .map(|(i,philosopher)| {
@@ -72,7 +71,11 @@ async fn main() {
         while let Some(thought) = rx.recv().await {
             println!("{}",thought);
         }
-    }).await;
+    }
+    
+    // force tasks to run against the local thread
+    let ls = tokio::task::LocalSet::new();
+    ls.run_until(app()).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
