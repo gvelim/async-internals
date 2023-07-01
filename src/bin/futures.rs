@@ -22,6 +22,7 @@ fn main() {
         // block's executor.
         let fut_tx_result = async move {
             (0..=100).for_each(|v| {
+                print!("s");
                 tx.unbounded_send(v).expect("Failed to send");
             })
         };
@@ -30,7 +31,10 @@ fn main() {
         // responsible for transmission
         pool.spawn_ok(fut_tx_result);
 
-        let fut_rx_values = rx.map(|v| v * 2).collect();
+        let fut_rx_values = rx
+            .inspect(|_| print!("r"))
+            .map(|v| v * 2)
+            .collect();
 
         // Use the executor provided to this async block to wait for the
         // future to complete.
@@ -56,7 +60,7 @@ fn test_local_pool_async() {
     use futures::executor::LocalPool;
     use futures::task::{LocalSpawnExt};
 
-    let (tx, rx) = mpsc::channel(100);
+    let (tx, rx) = mpsc::channel(10);
     let mut pool = LocalPool::new();
     
     // Spawn futures against green thread
@@ -71,9 +75,9 @@ fn test_local_pool_async() {
             .expect("msg");
     }
 
-    let hnd = pool.spawner().spawn_with_handle( async {
     // Spawn future that listens the channel end and collects what was sent
-        // drop holding of last sender reference so we channel drops after the last message has been retrieved
+    let hnd = pool.spawner().spawn_with_handle( async {
+// drop holding of last sender reference so we channel drops after the last message has been retrieved
         drop(tx);
         rx.inspect(|_| print!("r")).collect::<Vec<_>>().await
     }).unwrap();
@@ -90,7 +94,7 @@ fn test_local_pool_async() {
 fn test_thread_pool_async_v1() {
     use futures::executor::block_on;
 
-    let (tx, rx) = mpsc::channel(100);
+    let (tx, rx) = mpsc::channel(10);
     let pool = ThreadPool::builder()
         // .after_start(|d| println!("after start {d}"))
         // .before_stop(|d| println!("before stop {d}"))
@@ -129,7 +133,7 @@ fn test_thread_pool_async_v1() {
 fn test_thread_pool_async_v2() {
     use futures::executor::block_on;
 
-    let (tx, rx) = mpsc::channel(100);
+    let (tx, rx) = mpsc::channel(10);
     let pool = ThreadPool::builder()
         // .after_start(|d| println!("after start {d}"))
         // .before_stop(|d| println!("before stop {d}"))
