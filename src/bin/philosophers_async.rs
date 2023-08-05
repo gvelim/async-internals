@@ -40,11 +40,12 @@ async fn main() {
     
     async fn app() {
         // Create forks
-        let forks = PHILOSOPHERS.iter()
-        .map(|_| Arc::new(Mutex::new(Fork)))
-        .collect::<Vec<_>>();
+        let forks = PHILOSOPHERS
+            .iter()
+            .map(|_| Arc::new(Mutex::new(Fork)))
+            .collect::<Vec<_>>();
         
-        let (tx,mut rx) = mpsc::channel::<String>(3);
+        let (tx,mut rx) = mpsc::channel::<String>(2);
 
         PHILOSOPHERS.iter().enumerate()
             // Create philosophers
